@@ -33,5 +33,28 @@ export default function HomePage() {
 
   if (!user) return <div><LoginButton /></div>;
 
-  return <div>Welcome {user.email}</div>;
+  //return <div>Welcome {user.email}</div>;
+  //show the login page is proceeded by a file upload UI
+  
+  return (
+    <div style={{ padding: '2rem', textAlign: 'center' }}>
+      <h1>Welcome, {user.email}</h1>
+      <h2 style={{ marginTop: '1rem' }}>Upload Your Invoice</h2>
+      //show a new option to upload invoice
+
+      <input
+        type="file"
+        accept="application/pdf"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            console.log("You selected:", file.name);
+          }
+        }}
+        style={{ marginTop: '1.5rem' }}
+      />
+    </div>
+  );
 }
+
+
