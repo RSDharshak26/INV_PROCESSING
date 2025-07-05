@@ -40,7 +40,7 @@ export default function HomePage() {
     <div style={{ padding: '2rem', textAlign: 'center' }}>
       <h1>Welcome, {user.email}</h1>
       <h2 style={{ marginTop: '1rem' }}>Upload Your Invoice</h2>
-      //show a new option to upload invoice
+      //show a brand nicce  new option to upload invoice
 
       <input
         type="file"
