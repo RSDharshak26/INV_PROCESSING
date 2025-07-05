@@ -1,4 +1,8 @@
 'use client';
+
+import './globals.css';
+import { Button } from "@/components/ui/button"
+
 import { useEffect, useState } from 'react';
 import { supabase_obj } from '@/lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
@@ -41,7 +45,7 @@ export default function HomePage() {
       <h1>Welcome, {user.email}</h1>
       <h2 style={{ marginTop: '1rem' }}>Upload Your Invoice</h2>
       //show a brand nicce  new option to upload invoice
-
+      <Button>Click me</Button>
       <input
         type="file"
         accept="application/pdf"
