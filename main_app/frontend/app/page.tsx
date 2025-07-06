@@ -1,10 +1,10 @@
 'use client';
 
 import './globals.css';
-import { Button } from "@/components/ui/button"
+import { Button } from "@/main_app/frontend/app/ui/button"
 
 import { useEffect, useState } from 'react';
-import { supabase_obj } from '@/lib/supabaseClient';
+import { supabase_obj } from '@/main_app/frontend/lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
 import LoginButton from '@/app/components/LoginButton';
 
