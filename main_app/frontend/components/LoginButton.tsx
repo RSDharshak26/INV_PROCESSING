@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
-import { supabase_obj } from '@/main_app/frontend/lib/supabaseClient';
-import { Button } from "@/main_app/frontend/app/ui/button"
+import { supabase_obj } from '../lib/supabaseClient';
+import { Button } from '../app/ui/button'
 //A .tsx file is a TypeScript + JSX file.
 //JSX = JavaScript + HTML-like syntax (example below).
 //Defines a React component named LoginButton.
