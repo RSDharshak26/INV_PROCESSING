@@ -8,10 +8,27 @@ import { User } from '@supabase/supabase-js';
 import LoginButton from '@/components/LoginButton';
 
 export default function HomePage() {
+  const [loading,setloading] = useState(true);
+  const [isClient,setisClient] = useState(false);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const file = e.target.elements.file_upload.files[0];   // get the File
+    const formData = new FormData();
+    formData.append('file', file);
+    console.log("handleSubmit fired"); 
+    await fetch('http://localhost:5000/receive', {
+      method: 'POST',
+      body: formData        // no headers, browser adds them
+    });
+  };  
+
   const [user, setUser] = useState<User | null>(null);
   useEffect(() => {
+
+    setisClient(true);
     const getUser = async () => {
       try {
+        
         console.log('Checking current user...');
         //const { data: { user }, error } = await supabase_obj.auth.getUser(); // await means pause until you get a return object 
         const response = await supabase_obj.auth.getUser();
@@ -23,7 +40,7 @@ export default function HomePage() {
       } catch (error) {
         console.error('Error getting user:', error);
         setUser(null);
-      }
+      } finally {setloading(false)}
     };
 
     getUser();
@@ -36,8 +53,8 @@ export default function HomePage() {
     return () => subscription.unsubscribe();
   }, []); // [] is the dependency array . empty = no dependency and runs only once. 
 
+  if (loading || !isClient) return <div>loading....</div>;
   if (!user) return <div><LoginButton /></div>;
-
   //return <div>Welcome {user.email}</div>;
   //show the login page is proceeded by a file upload UI
   
@@ -45,19 +62,18 @@ export default function HomePage() {
     <div style={{ padding: '2rem', textAlign: 'center' }}>
       <h1>Welcome, {user.email}</h1>
       <h2 style={{ marginTop: '1rem' }}>Upload Your Invoice</h2>
-      //show a brand nicce  new option to upload invoice
-      <Button>Click me</Button>
-      <input
-        type="file"
-        accept="application/pdf"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) {
-            console.log("You selected:", file.name);
-          }
-        }}
-        style={{ marginTop: '1.5rem' }}
-      />
+
+
+      <form onSubmit={handleSubmit}>
+      <h2>Please upload your file pretty please </h2>
+      <input type="file" name = "file_upload" accept="application/pdf" />
+      <Button className="bg-blue-500 text-white p-4 rounded">Submit</Button>
+      </form>    
+
+
+      
+
+
     </div>
   );
 }
@@ -90,3 +106,6 @@ export default function HomePage() {
 // async ===========================================================================
 // async on a function declaration means “this function will return a Promise, 
 // and inside it I can use await to pause execution until another Promise resolves.
+
+
+// useEffect is Your Friend: Anything that should only run on the client goes in useEffect. The server ignores effects.

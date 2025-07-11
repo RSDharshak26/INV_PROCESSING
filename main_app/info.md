@@ -38,7 +38,10 @@ The second argument [] is the dependency array. An empty array [] means: "Only r
 
 
 
+front end and backend run on different servers.
 
+Front end : 3000
+Back  end : 5000
 
 
 

@@ -1,24 +1,3 @@
-from flask import Blueprint, request
-
-upload_bp = Blueprint('upload', __name__)
-
-@upload_bp.route('/receive', methods=['GET','POST'])
-def receive_image():
-    file = request.files['file']   # matches formData.append('file', file)
-    # file is a FileStorage object you can .save(), read .stream, etc.
-
-    print("data received")
-    try:
-        detected_text = detect_text(file)
-        print("detection is ongoing")
-        return {"status": "success", "detected_text": detected_text}
-    except Exception as e:
-        print("exception error")
-        return {"status": "error", "message": str(e)}
-
-
-
-
 def detect_text(path):
     """Detects text in the file."""
     from google.cloud import vision
@@ -55,4 +34,4 @@ def detect_text(path):
 
 
 
-##pip install flask-cors. this is to let 2 ports to talk to each other 
+detect_text(r'C:\Users\rsdha\Documents\GitHub\INV_PROCESSING\main_app\images\inv_example_1.jpg')
