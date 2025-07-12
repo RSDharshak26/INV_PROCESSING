@@ -1,9 +1,11 @@
 from flask import Blueprint, request
 from PIL import Image, ImageDraw
-upload_bp = Blueprint('upload', __name__)
-import time
 from dotenv import load_dotenv
 load_dotenv()
+import time
+
+upload_bp = Blueprint('upload', __name__)
+
 
 def detect_text(path):
     """Detects text in the file."""
