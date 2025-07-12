@@ -1,4 +1,7 @@
 from flask import Blueprint, request
+from dotenv import load_dotenv
+load_dotenv()
+
 
 upload_bp = Blueprint('upload', __name__)
 
