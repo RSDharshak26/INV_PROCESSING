@@ -79,7 +79,7 @@ export default function HomePage() {
       <h1>Welcome, {user.email}</h1>
       <h2 style={{ marginTop: '1rem' }}>Upload Your Invoice</h2>
 
-
+      
       <form onSubmit={handleSubmit}>
       <h2>Please upload your file pretty please </h2>
       <input type="file" name = "file_upload" accept="application/pdf" />
@@ -94,6 +94,9 @@ export default function HomePage() {
   );
 }
 
+//<form> is an HTML element that groups inputs and a submit button.
+//call the JavaScript function named handleSubmit
+//onSubmit={…}—is your event listener.
 
 
 // USE EFFECT AND USE STATE ARE CALLED REACT HOOKS =============================================
