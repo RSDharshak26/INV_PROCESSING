@@ -6,10 +6,14 @@ import { useEffect, useState } from 'react';
 import { supabase_obj } from '@/lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
 import LoginButton from '@/components/LoginButton';
+import { useRouter } from 'next/navigation';
+//for routing 
+
 
 export default function HomePage() {
   const [loading,setloading] = useState(true);
   const [isClient,setisClient] = useState(false);
+  const router = useRouter();
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => { //handleSubmit is a custom event handler. async returns a promise. async enables await. 
     e.preventDefault();
     const form = e.currentTarget; // html element that event listener is attached to 
@@ -24,19 +28,33 @@ export default function HomePage() {
     const formData = new FormData();
     formData.append('file', file);
     console.log("handleSubmit fired"); 
+    //fetch does two things:
+    // Sends an HTTP request to the URL you give (here http://…/receive).
+    // Returns a Promise that resolves to a Response object once the server replies.
+  
     const response = await fetch('http://localhost:5000/receive', {
       method: 'POST',
       body: formData        // no headers, browser adds them
     });
     
     const result = await response.json(); // instead of json you can use text, blob, formdata etc,
-    if (result.status === "success") {
-      // Redirect to results page with the image URL
-      window.location.href = `/results?img=${result.image_url}`;
+    if (result.status === "success") { // status is inbuilt 
+      // Redirect to results page with the image URL and extracted text
+      const params = new URLSearchParams({
+        img: result.image_url,
+        text: result.extracted_text || ''
+      });
+      router.push(`/results?${params.toString()}`);
     } else {
       alert("Processing failed. Please try again.");
     }
   };  
+
+// ================================================================================= HANDLE SUBMIT OVER ========================================
+// =============================================================================================================================================
+// =============================================================================================================================================
+// =============================================================================================================================================
+// ============================================================================================================================================= 
 
   const [user, setUser] = useState<User | null>(null);
   useEffect(() => {
@@ -82,7 +100,7 @@ export default function HomePage() {
       
       <form onSubmit={handleSubmit}>
       <h2>Please upload your file pretty please </h2>
-      <input type="file" name = "file_upload" accept="application/pdf" />
+      <input type="file" name = "file_upload" accept="image/*" />
       <Button className="bg-blue-500 text-white p-4 rounded">Submit</Button>
       </form>    
 

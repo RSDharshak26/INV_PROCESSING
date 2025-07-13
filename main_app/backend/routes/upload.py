@@ -3,6 +3,7 @@ from PIL import Image, ImageDraw
 from dotenv import load_dotenv
 load_dotenv()
 import time
+import re
 
 upload_bp = Blueprint('upload', __name__)
 
@@ -22,12 +23,22 @@ def detect_text(path):
         'image': image,
         'features': [{'type_': vision.Feature.Type.TEXT_DETECTION}]
     })
-    texts = response.text_annotations
-    print("Texts:")
-    detected_text = ""
-    for text in texts: # every detection produces a desccription and bounding boxes
-        print(f'\n"{text.description}"')
-        detected_text += text.description + "\n"
+    texts = response.text_annotations ## 0th index has the whole text detection as a string 
+    ##print("Texts:")
+    
+    
+    
+    # Get the complete text from the first annotation (index 0)
+    detected_text = texts[0].description if texts else ""
+    
+    #regex for pattern matching 
+    pattern = r'\d+\.?\d+'  # this matches all digits
+    matches = re.findall(pattern, detected_text)  # returns list of all matches
+    print("the matches are : ",matches)
+    
+    
+    # Print bounding boxes for debugging (optional)
+    for text in texts[1:]:  # Skip first one, process individual words for bounding boxes
         vertices = [
             f"({vertex.x},{vertex.y})" for vertex in text.bounding_poly.vertices
         ]
@@ -64,7 +75,7 @@ def draw_boxes_on_image(image_path, texts, output_filename):
 
 @upload_bp.route('/receive', methods=['GET','POST'])
 def receive_image():
-    print("data received")
+    
     
     if 'file' not in request.files:
         return {"status": "failed", "error": "No file uploaded"}
@@ -78,18 +89,20 @@ def receive_image():
         import os
         temp_path = f"temp_upload_{int(time.time())}.pdf"
         file.save(temp_path)
-        
+        print("data received")
         # Process the uploaded file
         detected_text, output_filename = detect_text(temp_path)
-        print("detection is ongoing")
+        print("detection done======================\n\n next will be (detected_text) being printed==============\n\n")
         
         # Clean up temporary file
         if os.path.exists(temp_path):
             os.remove(temp_path)
         
         ## processing text 
+        print("detection text start ===========================================")
         print(detected_text)
-        return {"status": "success", "image_url": f"/static/{output_filename}"}
+        print("detection text done ===========================================")
+        return {"status": "success", "image_url": f"/static/{output_filename}", "extracted_text": detected_text}
     except Exception as e:
         print("exception error")
         import traceback 
