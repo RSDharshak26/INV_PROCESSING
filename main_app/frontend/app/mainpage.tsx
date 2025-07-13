@@ -10,16 +10,32 @@ import LoginButton from '@/components/LoginButton';
 export default function HomePage() {
   const [loading,setloading] = useState(true);
   const [isClient,setisClient] = useState(false);
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => { //handleSubmit is a custom event handler. async returns a promise. async enables await. 
     e.preventDefault();
-    const file = e.target.elements.file_upload.files[0];   // get the File
+    const form = e.currentTarget; // html element that event listener is attached to 
+    const fileInput = form.elements.namedItem('file_upload') as HTMLInputElement;
+    const file = fileInput.files?.[0];   // get the File
+    
+    if (!file) {
+      alert("Please select a file first.");
+      return;
+    }
+    
     const formData = new FormData();
     formData.append('file', file);
     console.log("handleSubmit fired"); 
-    await fetch('http://localhost:5000/receive', {
+    const response = await fetch('http://localhost:5000/receive', {
       method: 'POST',
       body: formData        // no headers, browser adds them
     });
+    
+    const result = await response.json(); // instead of json you can use text, blob, formdata etc,
+    if (result.status === "success") {
+      // Redirect to results page with the image URL
+      window.location.href = `/results?img=${result.image_url}`;
+    } else {
+      alert("Processing failed. Please try again.");
+    }
   };  
 
   const [user, setUser] = useState<User | null>(null);
