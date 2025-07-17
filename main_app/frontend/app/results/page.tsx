@@ -1,9 +1,9 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';//Pulls in the Next.js hook for reading query parameters.
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
-//render when results page ( filename ) is accessed 
-export default function ResultsPage() {
+function ResultsPageContent() {
   // This hook lets you read query parameters from the URL
   const params = useSearchParams(); // browser only react hook 
 
@@ -24,5 +24,13 @@ export default function ResultsPage() {
         <p>No image to display. Please upload a file first.</p>
       )}
     </div>
+  );
+}
+
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ResultsPageContent />
+    </Suspense>
   );
 } 

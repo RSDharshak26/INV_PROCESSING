@@ -1,0 +1,22 @@
+services:
+  backend:
+    build:
+      context: ./main_app/backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=production
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/inv-processing-authentication-bfbb67befa12.json
+    volumes:
+      - ./main_app/backend:/app
+      - ./main_app/images:/app/images
+      - ./main_app/backend/inv-processing-authentication-bfbb67befa12.json:/app/inv-processing-authentication-bfbb67befa12.json
+
+  frontend:
+    build:
+      context: ./main_app/frontend
+    ports:
+      - "3000:3000"
+    # volumes:
+    #   - ./main_app/frontend:/app 

@@ -1,0 +1,5 @@
+flask
+flask-cors
+python-dotenv
+Pillow
+google-cloud-vision==3.4.4
