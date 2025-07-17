@@ -89,7 +89,7 @@ def receive_image():
         
         ## processing text 
         print(detected_text)
-        return {"status": "success", "image_url": f"/static/{output_filename}"}
+        return {"status": "success", "image_url": f"/static/{output_filename}", "extracted_text": detected_text}
     except Exception as e:
         print("exception error")
         import traceback 

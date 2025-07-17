@@ -32,8 +32,8 @@ export default function HomePage() {
     const result = await response.json(); // instead of json you can use text, blob, formdata etc,
     console.log("console result",result.status)
     if (result.status === "success") {
-      // Redirect to results page with the image URL
-      window.location.href = `/results?img=${result.image_url}`;
+      // Redirect to results page with the image URL and extracted text
+      window.location.href = `/results?img=${encodeURIComponent(result.image_url)}&text=${encodeURIComponent(result.extracted_text)}`;
     } else {
       alert("Processing failed. Please try again.");
     }
