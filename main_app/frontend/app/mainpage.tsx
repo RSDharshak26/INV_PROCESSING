@@ -38,6 +38,8 @@ export default function HomePage() {
     });
     
     const result = await response.json(); // instead of json you can use text, blob, formdata etc,
+
+    console.log("console result",result.status)
     if (result.status === "success") { // status is inbuilt 
       // Redirect to results page with the image URL and extracted text
       const params = new URLSearchParams({
@@ -99,8 +101,10 @@ export default function HomePage() {
 
       
       <form onSubmit={handleSubmit}>
-      <h2>Please upload your file pretty please </h2>
-      <input type="file" name = "file_upload" accept="image/*" />
+
+      <h2>Please upload your file pretty please. ONLY IMAGE </h2>
+      <input type="file" name = "file_upload" accept="image" />
+
       <Button className="bg-blue-500 text-white p-4 rounded">Submit</Button>
       </form>    
 

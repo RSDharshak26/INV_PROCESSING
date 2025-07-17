@@ -99,9 +99,6 @@ def receive_image():
             os.remove(temp_path)
         
         ## processing text 
-        print("detection text start ===========================================")
-        print(detected_text)
-        print("detection text done ===========================================")
         return {"status": "success", "image_url": f"/static/{output_filename}", "extracted_text": detected_text}
     except Exception as e:
         print("exception error")
