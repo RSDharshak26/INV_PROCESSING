@@ -3,3 +3,4 @@ flask-cors
 python-dotenv
 Pillow
 google-cloud-vision==3.4.4
+serverless_wsgi

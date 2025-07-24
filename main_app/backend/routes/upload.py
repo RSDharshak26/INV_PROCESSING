@@ -31,6 +31,21 @@ def detect_text(path):
     # Get the complete text from the first annotation (index 0)
     detected_text = texts[0].description if texts else ""
     
+    # Extract individual text segments with bounding boxes
+    text_segments = []
+    for text in texts[1:]:  # Skip first one (full text), process individual words
+        vertices = text.bounding_poly.vertices
+        bounding_box = {
+            "x1": vertices[0].x, "y1": vertices[0].y,  # Top-left
+            "x2": vertices[1].x, "y2": vertices[1].y,  # Top-right
+            "x3": vertices[2].x, "y3": vertices[2].y,  # Bottom-right
+            "x4": vertices[3].x, "y4": vertices[3].y   # Bottom-left
+        }
+        text_segments.append({
+            "text": text.description,
+            "bounding_box": bounding_box
+        })
+    
     #regex for pattern matching 
     pattern = r'\d+\.?\d+'  # this matches all digits
     matches = re.findall(pattern, detected_text)  # returns list of all matches
@@ -54,7 +69,7 @@ def detect_text(path):
             "https://cloud.google.com/apis/design/errors".format(response.error.message)
         )
     
-    return detected_text, output_filename
+    return detected_text, text_segments, output_filename
 
 
 
@@ -73,6 +88,31 @@ def draw_boxes_on_image(image_path, texts, output_filename):
 
 ##pip install flask-cors. this is to let 2 ports to talk to each other 
 
+
+
+def post_process(text_segments):
+    #this is where we will do the post processing of the detected text
+    #we will use the detected text to extract the data we need
+    #we will return the data we need
+    
+    word_names = ["Price","Quantity","Total"]
+    final_list = []
+    
+    for element in text_segments:
+        if element["text"] in word_names:
+            final_list.append(element)
+    
+    # TODO: Complete the column-wise bounding box logic later        
+    # for i in final_list:
+    #     for j in text_segments:
+    #         if (i==j):
+    #             continue
+    #         if (i["bounding_box"]["x1"] - j["bounding_box"]["x1"] < 10) and (i["bounding_box"]["x2"] - j["bounding_box"]["x2"]) < 10:
+    #             # Add logic here
+    #             pass
+    
+    return final_list  # Return the processed segments, not detected_text
+
 @upload_bp.route('/receive', methods=['GET','POST'])
 def receive_image():
     
@@ -84,6 +124,7 @@ def receive_image():
     if file.filename == '':
         return {"status": "failed", "error": "No file selected"}
     
+    
     try:
         # Save the uploaded file temporarily
         import os
@@ -91,7 +132,7 @@ def receive_image():
         file.save(temp_path)
         print("data received")
         # Process the uploaded file
-        detected_text, output_filename = detect_text(temp_path)
+        detected_text, text_segments, output_filename = detect_text(temp_path)
         print("detection done======================\n\n next will be (detected_text) being printed==============\n\n")
         
         # Clean up temporary file
@@ -99,7 +140,12 @@ def receive_image():
             os.remove(temp_path)
         
         ## processing text 
-        return {"status": "success", "image_url": f"/static/{output_filename}", "extracted_text": detected_text}
+        return {
+            "status": "success", 
+            "image_url": f"/static/{output_filename}", 
+            "extracted_text": detected_text,
+            "text_segments": text_segments
+        }
     except Exception as e:
         print("exception error")
         import traceback 

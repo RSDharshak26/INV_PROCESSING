@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 512
+
+Resources:
+  UploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .                      # package everything here
+      Runtime: python3.9              # match your Python version
+      Handler: app.lambda_handler     # our new handler
+      Events:
+        ReceiveApi:
+          Type: Api
+          Properties:
+            Path: /receive
+            Method: post
+        HealthApi:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get

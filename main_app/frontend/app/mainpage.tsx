@@ -102,7 +102,7 @@ export default function HomePage() {
       
       <form onSubmit={handleSubmit}>
 
-      <h2>Please upload your file pretty please. ONLY IMAGE </h2>
+      
       <input type="file" name = "file_upload" accept="image" />
 
       <Button className="bg-blue-500 text-white p-4 rounded">Submit</Button>

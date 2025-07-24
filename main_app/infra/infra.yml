@@ -1,0 +1,362 @@
+
+
+AWSTemplateFormatVersion: "2010-09-09"   
+Description: "ECS Fargate cluster for my app _ VPC"
+
+Parameters:
+  EnvName:                               
+    Type: String
+    Default: dev
+
+Resources:
+  AppCluster:                        
+    Type: AWS::ECS::Cluster          
+    Properties:
+      ClusterName: !Sub "${EnvName}-ecs-cluster"
+
+
+  AppVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvName}-vpc"
+
+  
+  AppInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvName}-igw"
+
+  AppVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref AppVPC
+      InternetGatewayId: !Ref AppInternetGateway
+
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AppVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvName}-public-subnet"
+
+
+  PublicSubnetAZ2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AppVPC
+      CidrBlock: 10.0.3.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]   # second AZ
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvName}-public-subnet-az2"
+
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AppVPC
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select [ 0, !GetAZs "" ] 
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvName}-private-subnet"
+
+
+  PrivateSubnetAZ2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AppVPC
+      CidrBlock: 10.0.4.0/24
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvName}-private-subnet-az2"
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${EnvName}-alb-sg"
+      VpcId: !Ref AppVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0    # allow HTTP from anywhere
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0    # allow HTTPS from anywhere
+      SecurityGroupEgress:
+        - IpProtocol: -1       # allow all outbound
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+
+  # 7) Security Group for Fargate tasks (containers)
+  ContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${EnvName}-container-sg"
+      VpcId: !Ref AppVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          SourceSecurityGroupId: !Ref ALBSecurityGroup  # only ALB on port 3000
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          SourceSecurityGroupId: !Ref ALBSecurityGroup  # only ALB on port 5000
+      SecurityGroupEgress:
+        - IpProtocol: -1       # containers can reach out anywhere (e.g. package repos)
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+
+  FrontendTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${EnvName}-frontend-task"
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: frontend
+          Image: 829719098161.dkr.ecr.us-east-1.amazonaws.com/my-frontend:latest
+          PortMappings:
+            - ContainerPort: 3000
+          Essential: true
+          Environment:               # optional variables
+            - Name: API_URL
+              Value: !Sub "https://${EnvName}-api.example.com/api"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: frontend
+
+  # 9) Backend Task Definition
+  BackendTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${EnvName}-backend-task"
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: backend
+          Image: 829719098161.dkr.ecr.us-east-1.amazonaws.com/my-backend:latest
+          PortMappings:
+            - ContainerPort: 5000
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: backend
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvName}-ecs-exec-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # CloudWatch Log Group for both frontend and backend logs
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${EnvName}"
+      RetentionInDays: 7
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AppVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvName}-public-rt"
+
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref AppInternetGateway
+
+  
+  PublicSubnetRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetAZ2RouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetAZ2
+      RouteTableId: !Ref PublicRouteTable
+
+
+
+  AppLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${EnvName}-alb"
+      Subnets:
+        - !Ref PublicSubnet
+        - !Ref PublicSubnetAZ2
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Scheme: internet-facing
+      Type: application
+
+  # -- Frontend Target Group (port 3000)
+  FrontendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${EnvName}-frontend-tg"
+      Port: 3000
+      Protocol: HTTP
+      VpcId: !Ref AppVPC
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: "3000"
+      HealthCheckPath: "/"
+      Matcher:
+        HttpCode: "200"
+
+  # -- Backend Target Group (port 5000)
+  BackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${EnvName}-backend-tg"
+      Port: 5000
+      Protocol: HTTP
+      VpcId: !Ref AppVPC
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: "5000"    
+      HealthCheckPath: "/health"
+      Matcher:
+        HttpCode: "200"
+
+
+
+  FrontendService:
+    Type: AWS::ECS::Service
+    DependsOn: 
+      - HTTPListener
+    Properties:
+      ServiceName: !Sub "${EnvName}-frontend-svc"
+      Cluster: !Ref AppCluster
+      TaskDefinition: !Ref FrontendTaskDef
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref PublicSubnet
+            - !Ref PublicSubnetAZ2
+            - !Ref PrivateSubnet
+            - !Ref PrivateSubnetAZ2
+          SecurityGroups:
+            - !Ref ContainerSecurityGroup
+          AssignPublicIp: ENABLED
+      LoadBalancers:
+        - ContainerName: frontend
+          ContainerPort: 3000
+          TargetGroupArn: !Ref FrontendTargetGroup
+
+  # 11) Backend Fargate Service
+  BackendService:
+    Type: AWS::ECS::Service
+    DependsOn: 
+      - HTTPListener
+    Properties:
+      ServiceName: !Sub "${EnvName}-backend-svc"
+      Cluster: !Ref AppCluster
+      TaskDefinition: !Ref BackendTaskDef
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref PublicSubnet
+            - !Ref PublicSubnetAZ2
+          SecurityGroups:
+            - !Ref ContainerSecurityGroup
+          AssignPublicIp: ENABLED
+      LoadBalancers:
+        - ContainerName: backend
+          ContainerPort: 5000
+          TargetGroupArn: !Ref BackendTargetGroup
+
+
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: AppLoadBalancer
+    Properties:
+      LoadBalancerArn: !Ref AppLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FrontendTargetGroup
+  
+
+
+
+
+  ReceiveListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: HTTPListener
+    Properties:
+      ListenerArn: !Ref HTTPListener
+      Priority: 1
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - "/receive*"
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+
+
+
+
+Outputs:
+  ClusterName:
+    Value: !Ref AppCluster
+    Description: "Name of the ECS cluster"
