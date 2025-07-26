@@ -27,6 +27,13 @@ export default function FloatingDashboard() {
       ws.onopen = () => {
         console.log('WebSocket connected');
         setConnectionStatus('connected');
+        
+        // Request current metrics after connection is established
+        setTimeout(() => {
+          const requestMessage = JSON.stringify({ action: 'get-metrics' });
+          ws.send(requestMessage);
+          console.log('Requested current metrics');
+        }, 100); // Small delay to ensure connection is fully ready
       };
 
       ws.onmessage = (event) => {

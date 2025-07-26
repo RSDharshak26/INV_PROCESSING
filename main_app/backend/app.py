@@ -147,12 +147,28 @@ def handle_websocket_connect(connection_id):
         )
         print(f"Connection {connection_id} stored successfully")
         
-        # Send current metrics immediately using the SAME logic as upload route
-        send_current_metrics_to_new_connection(connection_id)
+        # Don't send metrics immediately - wait for frontend to request them
         
         return {"statusCode": 200}
     except Exception as e:
         print(f"Error storing connection: {e}")
+        return {"statusCode": 500}
+
+def handle_websocket_message(connection_id, message):
+    """Handle WebSocket messages from frontend"""
+    try:
+        data = json.loads(message)
+        action = data.get('action')
+        
+        print(f"Received action '{action}' from {connection_id}")
+        
+        if action == 'get-metrics':
+            # Send current metrics when requested
+            send_current_metrics_to_new_connection(connection_id)
+        
+        return {"statusCode": 200}
+    except Exception as e:
+        print(f"Error handling message from {connection_id}: {e}")
         return {"statusCode": 500}
 
 def handle_websocket_disconnect(connection_id):
@@ -261,6 +277,10 @@ def lambda_handler(event, context):
             return handle_websocket_connect(connection_id)
         elif route_key == '$disconnect':
             return handle_websocket_disconnect(connection_id)
+        elif route_key == '$default':
+            # Handle messages sent from frontend
+            message = event.get('body', '{}')
+            return handle_websocket_message(connection_id, message)
         else:
             return {"statusCode": 200}
     
