@@ -18,7 +18,7 @@ export default function FloatingDashboard() {
 
   useEffect(() => {
     // Replace with actual WebSocket endpoint after deployment
-    const wsEndpoint = process.env.NEXT_PUBLIC_WS_ENDPOINT || 'wss://your-websocket-api.execute-api.us-east-1.amazonaws.com/dev';
+    const wsEndpoint = process.env.NEXT_PUBLIC_WS_ENDPOINT || 'wss://hsdtkjqsub.execute-api.us-east-1.amazonaws.com/dev';
     
     const connectWebSocket = () => {
       console.log('Connecting to WebSocket:', wsEndpoint);
