@@ -66,31 +66,33 @@ def broadcast_metrics_update():
         return
     
     try:
-        # Get metrics from last 60 seconds
-        now = int(time.time() * 1000)
-        sixty_seconds_ago = now - 60000
+        # Get ALL metrics ever processed (no time filter)
+        all_metrics_response = metrics_table.scan()
+        all_metrics = all_metrics_response.get('Items', [])
         
-        response = metrics_table.scan(
-            FilterExpression='#ts >= :start',
-            ExpressionAttributeNames={'#ts': 'timestamp'},
-            ExpressionAttributeValues={':start': sixty_seconds_ago}
-        )
+        # Calculate all-time dashboard metrics
+        total_all_time = len(all_metrics)  # Total invoices ever processed
         
-        metrics = response.get('Items', [])
+        # Calculate all-time averages
+        if all_metrics:
+            avg_latency = sum(int(m.get('latency', 0)) for m in all_metrics) / len(all_metrics)
+            avg_accuracy = sum(float(m.get('accuracy', 0)) for m in all_metrics) / len(all_metrics)
+        else:
+            avg_latency = 0
+            avg_accuracy = 0
         
-        # Calculate aggregated metrics
-        total = len(metrics)
-        avg_latency = sum(int(m.get('latency', 0)) for m in metrics) / max(total, 1)
-        avg_accuracy = sum(float(m.get('accuracy', 0)) for m in metrics) / max(total, 1)
-        throughput = total / 60  # per second
+        # Simple throughput: total processed (you could remove this if not needed)
+        throughput = total_all_time  # Just show total count, or set to 0 if you don't want throughput
         
         aggregated_metrics = {
-            'total': total,
-            'avgLatency': round(avg_latency),
-            'avgAccuracy': round(avg_accuracy, 1),
-            'throughput': round(throughput, 2),
-            'timestamp': now
+            'total': total_all_time,        # All-time total
+            'avgLatency': round(avg_latency),   # All-time average latency
+            'avgAccuracy': round(avg_accuracy, 1),  # All-time average accuracy
+            'throughput': throughput,       # Just total count (or remove if not needed)
+            'timestamp': int(time.time() * 1000)
         }
+        
+        print(f"All-time dashboard metrics: {total_all_time} total, {avg_latency:.0f}ms avg latency, {avg_accuracy:.1f}% avg accuracy")
         
         # Get all active connections
         connections_response = connections_table.scan()
