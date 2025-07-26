@@ -148,7 +148,7 @@ Resources:
             - Name: NEXT_PUBLIC_SUPABASE_URL
               Value: "https://qkwviicbpbkkafstuxhx.supabase.co"
             - Name: NEXT_PUBLIC_SUPABASE_ANON_KEY
-              Value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrd3ZpaWNkcGJra2Fmc3R1eHhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxMzM4OTIsImV4cCI6MjA2NDcwOTg5Mn0.f6AvhycerXoCdCAhvpSOLW4N5_hoFsmnL_CcA8iri0s"
+              Value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrd3ZpaWNicGJra2Fmc3R1eHhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxMzM4OTIsImV4cCI6MjA2NDcwOTg5Mn0.f6AvhycerXoCdCAhvpSOLW4N5_hoFsmnL_CcA8iri0s"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -392,11 +392,5 @@ Outputs:
     Description: "AWS Load Balancer URL for testing"
     Export:
       Name: !Sub "${EnvName}-frontend-url"
-  
-  WebSocketEndpoint:
-    Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/dev"
-    Description: "WebSocket API endpoint for real-time dashboard"
-    Export:
-      Name: !Sub "${EnvName}-websocket-url"
 
 
