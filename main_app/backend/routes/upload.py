@@ -74,17 +74,56 @@ def detect_text(path):
 
 
 def draw_boxes_on_image(image_path, texts, output_filename):
-    image = Image.open(image_path)
-    draw = ImageDraw.Draw(image)
-    for text in texts:
-        # Get the bounding box vertices as a list of (x, y) tuples
-        vertices = [(vertex.x, vertex.y) for vertex in text.bounding_poly.vertices]
-        if len(vertices) == 4:
-            draw.line(vertices + [vertices[0]], width=2, fill='red')  # Draw box
-    # Save the image with boxes in tmp directory for Lambda
-    output_path = f"/tmp/{output_filename}"
-    image.save(output_path)
-    print(f"Image saved to: {output_path}")
+    try:
+        # Try multiple PIL opening methods
+        image = None
+        
+        # Method 1: Standard open
+        try:
+            image = Image.open(image_path)
+            print("PIL Method 1 (standard) succeeded")
+        except:
+            print("PIL Method 1 failed, trying method 2")
+            
+            # Method 2: Force specific format
+            try:
+                with open(image_path, 'rb') as f:
+                    image = Image.open(f)
+                    image = image.convert('RGB')  # Force RGB mode
+                print("PIL Method 2 (RGB convert) succeeded")
+            except:
+                print("PIL Method 2 failed, trying method 3")
+                
+                # Method 3: Read raw bytes and recreate
+                try:
+                    import io
+                    with open(image_path, 'rb') as f:
+                        img_bytes = f.read()
+                    image = Image.open(io.BytesIO(img_bytes))
+                    image = image.convert('RGB')
+                    print("PIL Method 3 (BytesIO) succeeded")
+                except Exception as e:
+                    print(f"All PIL methods failed: {e}")
+                    raise
+        
+        if image is None:
+            raise Exception("Could not open image with any method")
+            
+        # Draw bounding boxes
+        draw = ImageDraw.Draw(image)
+        for text in texts:
+            vertices = [(vertex.x, vertex.y) for vertex in text.bounding_poly.vertices]
+            if len(vertices) == 4:
+                draw.line(vertices + [vertices[0]], width=2, fill='red')
+        
+        # Save the image with boxes in tmp directory for Lambda
+        output_path = f"/tmp/{output_filename}"
+        image.save(output_path, 'JPEG', quality=95)  # Force JPEG format
+        print(f"Image saved to: {output_path}")
+        
+    except Exception as e:
+        print(f"draw_boxes_on_image error: {e}")
+        raise
 
 ##pip install flask-cors. this is to let 2 ports to talk to each other 
 
