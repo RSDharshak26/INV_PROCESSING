@@ -27,5 +27,3 @@ Resources:
           Properties:
             Path: /receive
             Method: post
-            Auth:
-              ApiKeyRequired: false
