@@ -1,0 +1,39 @@
+name: Deploy to AWS
+on:
+  push:
+    branches: [main]
+    
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      # FRONTEND DEPLOYMENT
+      - name: Build and push frontend
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 829719098161.dkr.ecr.us-east-1.amazonaws.com
+          cd main_app/frontend
+          docker build -t my-frontend .
+          docker tag my-frontend:latest 829719098161.dkr.ecr.us-east-1.amazonaws.com/my-frontend:latest
+          docker push 829719098161.dkr.ecr.us-east-1.amazonaws.com/my-frontend:latest
+          cd ../..
+          
+      - name: Update ECS service
+        run: |
+          aws ecs update-service --cluster prod-cluster --service prod-frontend-svc --force-new-deployment
+      
+      # BACKEND DEPLOYMENT (LAMBDA)
+      - name: Deploy Lambda backend
+        run: |
+          cd main_app/backend
+          sam build --use-container
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+          cd ../..

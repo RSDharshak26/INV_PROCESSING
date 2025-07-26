@@ -81,8 +81,8 @@ def draw_boxes_on_image(image_path, texts, output_filename):
         vertices = [(vertex.x, vertex.y) for vertex in text.bounding_poly.vertices]
         if len(vertices) == 4:
             draw.line(vertices + [vertices[0]], width=2, fill='red')  # Draw box
-    # Save the image with boxes
-    output_path = f"static/{output_filename}"
+    # Save the image with boxes in tmp directory for Lambda
+    output_path = f"/tmp/{output_filename}"
     image.save(output_path)
     print(f"Image saved to: {output_path}")
 
@@ -113,27 +113,46 @@ def post_process(text_segments):
     
     return final_list  # Return the processed segments, not detected_text
 
-@upload_bp.route('/receive', methods=['GET','POST'])
+@upload_bp.route('/receive', methods=['GET','POST','OPTIONS'])
 def receive_image():
     
     
-    if 'file' not in request.files:
-        return {"status": "failed", "error": "No file uploaded"}
-    
-    file = request.files['file']
-    if file.filename == '':
-        return {"status": "failed", "error": "No file selected"}
-    
+    # Handle CORS preflight request - ADD THIS BLOCK
+    if request.method == 'OPTIONS':
+        from flask import make_response
+        resp = make_response('')
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return resp
     
     try:
+        print("Request received")
+        if 'file' not in request.files:
+            from flask import make_response
+            resp = make_response({"status": "failed", "error": "No file uploaded"})
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            return resp
+        
+        file = request.files['file']
+        print(f"File received: {file.filename}")
+        if file.filename == '':
+            from flask import make_response
+            resp = make_response({"status": "failed", "error": "No file selected"})
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            return resp
+        
         # Save the uploaded file temporarily
         import os
-        temp_path = f"temp_upload_{int(time.time())}.pdf"
+        # Get file extension from uploaded file
+        file_extension = os.path.splitext(file.filename)[1] or '.jpg'
+        temp_path = f"/tmp/temp_upload_{int(time.time())}{file_extension}"
         file.save(temp_path)
-        print("data received")
+        print("File saved successfully")
+        
         # Process the uploaded file
         detected_text, text_segments, output_filename = detect_text(temp_path)
-        print("detection done======================\n\n next will be (detected_text) being printed==============\n\n")
+        print("Detection completed successfully")
         
         # Clean up temporary file
         if os.path.exists(temp_path):
@@ -142,12 +161,12 @@ def receive_image():
         ## processing text 
         return {
             "status": "success", 
-            "image_url": f"/static/{output_filename}", 
+            "image_url": f"/tmp/{output_filename}", 
             "extracted_text": detected_text,
             "text_segments": text_segments
         }
     except Exception as e:
-        print("exception error")
+        print(f"Exception error: {str(e)}")
         import traceback 
         traceback.print_exc()
         return {"status": "failed", "error": str(e)}

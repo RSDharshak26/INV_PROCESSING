@@ -25,7 +25,7 @@ def lambda_handler(event, context):
     return serverless_wsgi.handle_request(app, event, context)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="127.0.0.1", port=3000, debug=True)
 
 
 

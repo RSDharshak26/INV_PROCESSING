@@ -7,12 +7,11 @@ services:
     environment:
       - FLASK_APP=app.py
       - FLASK_ENV=production
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/inv-processing-authentication-bfbb67befa12.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/inv-processing-authentication-f9e50adadbc5.json
     volumes:
       - ./main_app/backend:/app
       - ./main_app/images:/app/images
-      - ./main_app/backend/inv-processing-authentication-bfbb67befa12.json:/app/inv-processing-authentication-bfbb67befa12.json
-
+      - ./main_app/backend/inv-processing-authentication-f9e50adadbc5.json:/app/inv-processing-authentication-f9e50adadbc5.json
   frontend:
     build:
       context: ./main_app/frontend

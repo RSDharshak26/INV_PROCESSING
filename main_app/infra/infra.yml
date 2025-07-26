@@ -7,12 +7,14 @@ Parameters:
   EnvName:                               
     Type: String
     Default: dev
+  
+
 
 Resources:
-  AppCluster:                        
-    Type: AWS::ECS::Cluster          
+  AppCluster:
+    Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub "${EnvName}-ecs-cluster"
+      ClusterName: !Sub "${EnvName}-cluster"
 
 
   AppVPC:
@@ -118,10 +120,6 @@ Resources:
           FromPort: 3000
           ToPort: 3000
           SourceSecurityGroupId: !Ref ALBSecurityGroup  # only ALB on port 3000
-        - IpProtocol: tcp
-          FromPort: 5000
-          ToPort: 5000
-          SourceSecurityGroupId: !Ref ALBSecurityGroup  # only ALB on port 5000
       SecurityGroupEgress:
         - IpProtocol: -1       # containers can reach out anywhere (e.g. package repos)
           FromPort: 0
@@ -140,13 +138,17 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: frontend
-          Image: 829719098161.dkr.ecr.us-east-1.amazonaws.com/my-frontend:latest
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/my-frontend:latest"
           PortMappings:
             - ContainerPort: 3000
           Essential: true
-          Environment:               # optional variables
-            - Name: API_URL
-              Value: !Sub "https://${EnvName}-api.example.com/api"
+          Environment:
+            - Name: REACT_APP_API_URL
+              Value: "https://pd8768jjsc.execute-api.us-east-1.amazonaws.com/Prod/receive"
+            - Name: NEXT_PUBLIC_SUPABASE_URL
+              Value: "https://qkwviicbpbkkafstuxhx.supabase.co"
+            - Name: NEXT_PUBLIC_SUPABASE_ANON_KEY
+              Value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrd3ZpaWNkcGJra2Fmc3R1eHhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxMzM4OTIsImV4cCI6MjA2NDcwOTg5Mn0.f6AvhycerXoCdCAhvpSOLW4N5_hoFsmnL_CcA8iri0s"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -154,29 +156,7 @@ Resources:
               awslogs-region: !Ref "AWS::Region"
               awslogs-stream-prefix: frontend
 
-  # 9) Backend Task Definition
-  BackendTaskDef:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: !Sub "${EnvName}-backend-task"
-      Cpu: "256"
-      Memory: "512"
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: backend
-          Image: 829719098161.dkr.ecr.us-east-1.amazonaws.com/my-backend:latest
-          PortMappings:
-            - ContainerPort: 5000
-          Essential: true
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref LogGroup
-              awslogs-region: !Ref "AWS::Region"
-              awslogs-stream-prefix: backend
+
 
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
@@ -257,20 +237,7 @@ Resources:
       Matcher:
         HttpCode: "200"
 
-  # -- Backend Target Group (port 5000)
-  BackendTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: !Sub "${EnvName}-backend-tg"
-      Port: 5000
-      Protocol: HTTP
-      VpcId: !Ref AppVPC
-      TargetType: ip
-      HealthCheckProtocol: HTTP
-      HealthCheckPort: "5000"    
-      HealthCheckPath: "/health"
-      Matcher:
-        HttpCode: "200"
+
 
 
 
@@ -289,8 +256,6 @@ Resources:
           Subnets:
             - !Ref PublicSubnet
             - !Ref PublicSubnetAZ2
-            - !Ref PrivateSubnet
-            - !Ref PrivateSubnetAZ2
           SecurityGroups:
             - !Ref ContainerSecurityGroup
           AssignPublicIp: ENABLED
@@ -299,29 +264,7 @@ Resources:
           ContainerPort: 3000
           TargetGroupArn: !Ref FrontendTargetGroup
 
-  # 11) Backend Fargate Service
-  BackendService:
-    Type: AWS::ECS::Service
-    DependsOn: 
-      - HTTPListener
-    Properties:
-      ServiceName: !Sub "${EnvName}-backend-svc"
-      Cluster: !Ref AppCluster
-      TaskDefinition: !Ref BackendTaskDef
-      DesiredCount: 1
-      LaunchType: FARGATE
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !Ref PublicSubnet
-            - !Ref PublicSubnetAZ2
-          SecurityGroups:
-            - !Ref ContainerSecurityGroup
-          AssignPublicIp: ENABLED
-      LoadBalancers:
-        - ContainerName: backend
-          ContainerPort: 5000
-          TargetGroupArn: !Ref BackendTargetGroup
+
 
 
   HTTPListener:
@@ -334,29 +277,17 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref FrontendTargetGroup
-  
-
-
-
-
-  ReceiveListenerRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: HTTPListener
-    Properties:
-      ListenerArn: !Ref HTTPListener
-      Priority: 1
-      Conditions:
-        - Field: path-pattern
-          Values:
-            - "/receive*"
-      Actions:
-        - Type: forward
-          TargetGroupArn: !Ref BackendTargetGroup
-
-
 
 
 Outputs:
   ClusterName:
     Value: !Ref AppCluster
     Description: "Name of the ECS cluster"
+  
+  ApplicationURL:
+    Value: !Sub "http://${AppLoadBalancer.DNSName}"
+    Description: "AWS Load Balancer URL for testing"
+    Export:
+      Name: !Sub "${EnvName}-frontend-url"
+  
+

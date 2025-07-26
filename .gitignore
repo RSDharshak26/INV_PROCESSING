@@ -32,3 +32,29 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts 
 
+# AWS SAM
+.aws-sam/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+
+# Temporary upload files
+temp_upload_*
+
+# Environment files
+.env
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+
+# Static files (generated)
+main_app/backend/static/ 
+

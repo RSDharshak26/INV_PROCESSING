@@ -32,7 +32,7 @@ export default function HomePage() {
     // Sends an HTTP request to the URL you give (here http://…/receive).
     // Returns a Promise that resolves to a Response object once the server replies.
   
-    const response = await fetch('http://localhost:5000/receive', {
+    const response = await fetch('https://pd8768jjsc.execute-api.us-east-1.amazonaws.com/Prod/receive', {
       method: 'POST',
       body: formData        // no headers, browser adds them
     });
