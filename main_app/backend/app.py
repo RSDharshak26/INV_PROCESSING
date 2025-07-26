@@ -174,15 +174,7 @@ def handle_websocket_connect(connection_id):
                 'connectedAt': time.strftime('%Y-%m-%d %H:%M:%S UTC')
             }
         )
-        print(f"Connection {connection_id} stored successfully")
-        
-        # Try to send current metrics immediately - if it fails, that's OK
-        try:
-            send_metrics_to_connection(connection_id)
-        except Exception as e:
-            print(f"Could not send initial metrics to {connection_id} (connection might not be ready): {e}")
-            print("User will get metrics when next invoice is processed or someone else uploads")
-        
+        print(f"Connection {connection_id} stored successfully - waiting for metrics request")
         return {"statusCode": 200}
     except Exception as e:
         print(f"Error storing connection: {e}")
@@ -218,6 +210,26 @@ def lambda_handler(event, context):
             return handle_websocket_connect(connection_id)
         elif route_key == '$disconnect':
             return handle_websocket_disconnect(connection_id)
+        elif route_key == '$default':
+            # Handle incoming messages
+            try:
+                body = event.get('body', '{}')
+                message = json.loads(body) if body else {}
+                action = message.get('action')
+                
+                print(f"Received WebSocket message: action='{action}' from {connection_id}")
+                
+                if action == 'get-metrics':
+                    # Send current metrics to this connection
+                    send_metrics_to_connection(connection_id)
+                    return {"statusCode": 200}
+                else:
+                    print(f"Unknown action: {action}")
+                    return {"statusCode": 200}
+                    
+            except Exception as e:
+                print(f"Error handling WebSocket message: {e}")
+                return {"statusCode": 500}
         else:
             return {"statusCode": 200}
     

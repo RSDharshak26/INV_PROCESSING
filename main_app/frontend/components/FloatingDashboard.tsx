@@ -24,8 +24,18 @@ export default function FloatingDashboard() {
       const ws = new WebSocket(wsEndpoint);
 
       ws.onopen = () => {
-        console.log('WebSocket connected - waiting for metrics...');
+        console.log('WebSocket connected - requesting initial metrics...');
         setConnectionStatus('connected');
+        
+        // Wait a moment for connection to stabilize, then request metrics
+        setTimeout(() => {
+          try {
+            ws.send(JSON.stringify({ action: 'get-metrics' }));
+            console.log('Requested initial metrics from server');
+          } catch (error) {
+            console.error('Error requesting metrics:', error);
+          }
+        }, 500); // 500ms delay to ensure connection is stable
       };
 
       ws.onmessage = (event) => {
