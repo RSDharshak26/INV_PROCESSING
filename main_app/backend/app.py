@@ -61,42 +61,6 @@ def calculate_all_time_metrics():
         print(f"Error calculating metrics: {e}")
         return None
 
-def send_metrics_to_connection(connection_id):
-    """Send current metrics to a specific connection"""
-    if not connections_table:
-        print("Connections table not available")
-        return
-    
-    try:
-        # Get current metrics
-        metrics = calculate_all_time_metrics()
-        if not metrics:
-            print(f"No metrics to send to {connection_id}")
-            return
-        
-        # Get WebSocket endpoint
-        ws_endpoint = os.environ.get('WS_ENDPOINT')
-        if not ws_endpoint:
-            print("WebSocket endpoint not configured")
-            return
-        
-        # Send to connection
-        apigateway = boto3.client('apigatewaymanagementapi', 
-                                endpoint_url=ws_endpoint.replace('wss://', 'https://'))
-        
-        message = json.dumps({
-            'type': 'metrics-update',
-            'data': metrics
-        })
-        
-        apigateway.post_to_connection(
-            ConnectionId=connection_id,
-            Data=message
-        )
-        print(f"Successfully sent metrics to connection {connection_id}")
-        
-    except Exception as e:
-        print(f"Error sending metrics to {connection_id}: {e}")
 
 def broadcast_metrics_to_all():
     """Broadcast current metrics to all connected WebSocket clients"""
@@ -220,8 +184,8 @@ def lambda_handler(event, context):
                 print(f"Received WebSocket message: action='{action}' from {connection_id}")
                 
                 if action == 'get-metrics':
-                    # Send current metrics to this connection
-                    send_metrics_to_connection(connection_id)
+                    # Send current metrics using the same function that works after image processing
+                    broadcast_metrics_to_all()
                     return {"statusCode": 200}
                 else:
                     print(f"Unknown action: {action}")
