@@ -23,7 +23,7 @@ function ResultsPageContent() {
           <h2 style={{ marginBottom: '1rem' }}>Processed Image with Bounding Boxes</h2>
           {imgUrl ? (
             <img
-              src={`http://localhost:5000${imgUrl}`}
+              src={imgUrl}
               alt="Processed with bounding boxes"
               style={{ 
                 maxWidth: '100%', 

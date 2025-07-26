@@ -41,9 +41,9 @@ export default function HomePage() {
 
     console.log("console result",result.status)
     if (result.status === "success") { // status is inbuilt 
-      // Redirect to results page with the image URL and extracted text
+      // Redirect to results page with the processed image and extracted text
       const params = new URLSearchParams({
-        img: result.image_url,
+        img: result.processed_image,
         text: result.extracted_text || ''
       });
       router.push(`/results?${params.toString()}`);
