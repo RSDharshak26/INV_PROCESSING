@@ -159,17 +159,29 @@ def receive_image():
             os.remove(temp_path)
         
         ## processing text 
-        return {
+        from flask import make_response
+        response = {
             "status": "success", 
             "image_url": f"/tmp/{output_filename}", 
             "extracted_text": detected_text,
             "text_segments": text_segments
         }
+        resp = make_response(response)
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return resp
     except Exception as e:
         print(f"Exception error: {str(e)}")
         import traceback 
         traceback.print_exc()
-        return {"status": "failed", "error": str(e)}
+        from flask import make_response
+        error_response = {"status": "failed", "error": str(e)}
+        resp = make_response(error_response)
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return resp
         #Return a JSON response with the new image’s URL:
 
 
