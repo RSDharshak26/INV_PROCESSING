@@ -160,9 +160,40 @@ def receive_image():
         # Get file extension from uploaded file
         file_extension = os.path.splitext(file.filename)[1] or '.jpg'
         temp_path = f"/tmp/temp_upload_{int(time.time())}{file_extension}"
-        file.save(temp_path)
-        print("File saved successfully")
-        
+
+        # Save file with proper error handling
+        try:
+            # Save the file
+            file.save(temp_path)
+            
+            # Verify file was saved correctly
+            if not os.path.exists(temp_path):
+                raise Exception("File was not saved to disk")
+            
+            file_size = os.path.getsize(temp_path)
+            print(f"File saved successfully: {temp_path}, size: {file_size} bytes")
+            
+            if file_size == 0:
+                raise Exception("Saved file is empty")
+                
+            # Try to verify PIL can read it
+            from PIL import Image
+            with Image.open(temp_path) as test_img:
+                print(f"PIL verification successful: {test_img.format}, size: {test_img.size}")
+                
+        except Exception as save_error:
+            print(f"File saving/verification error: {save_error}")
+            # Try alternative saving method
+            temp_path = f"/tmp/temp_upload_alt_{int(time.time())}{file_extension}"
+            with open(temp_path, 'wb') as f:
+                file.seek(0)  # Reset file pointer
+                f.write(file.read())
+                f.flush()
+                os.fsync(f.fileno())  # Force write to disk
+            
+            file_size = os.path.getsize(temp_path)
+            print(f"Alternative save method: {temp_path}, size: {file_size} bytes")
+
         # Process the uploaded file
         detected_text, text_segments, output_filename = detect_text(temp_path)
         print("Detection completed successfully")
