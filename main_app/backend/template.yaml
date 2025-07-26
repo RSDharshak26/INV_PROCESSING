@@ -5,6 +5,11 @@ Globals:
   Function:
     Timeout: 60
     MemorySize: 1024
+  Api:
+    BinaryMediaTypes:
+      - "image/*"
+      - "application/octet-stream"
+      - "multipart/form-data"
 
 Resources:
   UploadFunction:
@@ -22,3 +27,5 @@ Resources:
           Properties:
             Path: /receive
             Method: post
+            Auth:
+              ApiKeyRequired: false
