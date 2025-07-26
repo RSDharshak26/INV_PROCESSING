@@ -19,7 +19,8 @@ app.register_blueprint(upload_bp)
 def health_check():
     return {"status": "healthy"}, 200
 
-CORS(app, origins=["http://localhost:3000"])
+
+CORS(app, origins = ["*"])
 
 def lambda_handler(event, context):
     return serverless_wsgi.handle_request(app, event, context)

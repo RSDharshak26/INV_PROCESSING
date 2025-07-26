@@ -96,22 +96,35 @@ def post_process(text_segments):
     #we will return the data we need
     
     word_names = ["Price","Quantity","Total"]
-    final_list = []
+    headers = []
     
+    # Find header elements
     for element in text_segments:
         if element["text"] in word_names:
-            final_list.append(element)
+            headers.append(element)
     
-    # TODO: Complete the column-wise bounding box logic later        
-    # for i in final_list:
-    #     for j in text_segments:
-    #         if (i==j):
-    #             continue
-    #         if (i["bounding_box"]["x1"] - j["bounding_box"]["x1"] < 10) and (i["bounding_box"]["x2"] - j["bounding_box"]["x2"]) < 10:
-    #             # Add logic here
-    #             pass
+    # Find column-aligned elements for each header
+    columns = {}
+    for header in headers:
+        column_name = header["text"]
+        columns[column_name] = [header]
+        
+        header_x1 = header["bounding_box"]["x1"]
+        header_x2 = header["bounding_box"]["x2"]
+        
+        # Find other elements that align with this header column
+        for element in text_segments:
+            if element == header:
+                continue
+                
+            elem_x1 = element["bounding_box"]["x1"]
+            elem_x2 = element["bounding_box"]["x2"]
+            
+            # Check if element aligns with header (overlap in x-range)
+            if (elem_x1 <= header_x2 and elem_x2 >= header_x1):
+                columns[column_name].append(element)
     
-    return final_list  # Return the processed segments, not detected_text
+    return columns if columns else headers
 
 @upload_bp.route('/receive', methods=['GET','POST','OPTIONS'])
 def receive_image():
