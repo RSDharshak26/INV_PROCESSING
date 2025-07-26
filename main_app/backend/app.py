@@ -32,6 +32,71 @@ def health_check():
 
 CORS(app, origins = ["*"])
 
+def calculate_current_metrics():
+    """Calculate current all-time metrics from database"""
+    if not metrics_table:
+        return None
+    
+    try:
+        # Get ALL metrics ever processed (no time filter)
+        all_metrics_response = metrics_table.scan()
+        all_metrics = all_metrics_response.get('Items', [])
+        
+        # Calculate all-time dashboard metrics
+        total_all_time = len(all_metrics)  # Total invoices ever processed
+        
+        # Calculate all-time averages
+        if all_metrics:
+            avg_latency = sum(int(m.get('latency', 0)) for m in all_metrics) / len(all_metrics)
+            avg_accuracy = sum(float(m.get('accuracy', 0)) for m in all_metrics) / len(all_metrics)
+        else:
+            avg_latency = 0
+            avg_accuracy = 0
+        
+        # Simple throughput: total processed
+        throughput = total_all_time
+        
+        aggregated_metrics = {
+            'total': total_all_time,        # All-time total
+            'avgLatency': round(avg_latency),   # All-time average latency
+            'avgAccuracy': round(avg_accuracy, 1),  # All-time average accuracy
+            'throughput': throughput,       # Just total count
+            'timestamp': int(time.time() * 1000)
+        }
+        
+        print(f"Current metrics: {total_all_time} total, {avg_latency:.0f}ms avg latency, {avg_accuracy:.1f}% avg accuracy")
+        return aggregated_metrics
+        
+    except Exception as e:
+        print(f"Error calculating metrics: {e}")
+        return None
+
+def send_metrics_to_connection(connection_id, metrics):
+    """Send metrics to a specific WebSocket connection"""
+    ws_endpoint = os.environ.get('WS_ENDPOINT')
+    if not ws_endpoint:
+        print("WebSocket endpoint not configured")
+        return False
+    
+    try:
+        apigateway = boto3.client('apigatewaymanagementapi', 
+                                endpoint_url=ws_endpoint.replace('wss://', 'https://'))
+        
+        message = json.dumps({
+            'type': 'metrics-update',
+            'data': metrics
+        })
+        
+        apigateway.post_to_connection(
+            ConnectionId=connection_id,
+            Data=message
+        )
+        print(f"Sent current metrics to new connection {connection_id}")
+        return True
+    except Exception as e:
+        print(f"Error sending metrics to {connection_id}: {e}")
+        return False
+
 def handle_websocket_connect(connection_id):
     """Handle WebSocket connection"""
     if not connections_table:
@@ -39,6 +104,7 @@ def handle_websocket_connect(connection_id):
         return {"statusCode": 500}
     
     try:
+        # Store the connection
         connections_table.put_item(
             Item={
                 'connectionId': connection_id,
@@ -47,6 +113,12 @@ def handle_websocket_connect(connection_id):
             }
         )
         print(f"Connection {connection_id} stored successfully")
+        
+        # Immediately send current metrics to the new connection
+        current_metrics = calculate_current_metrics()
+        if current_metrics:
+            send_metrics_to_connection(connection_id, current_metrics)
+        
         return {"statusCode": 200}
     except Exception as e:
         print(f"Error storing connection: {e}")
@@ -75,31 +147,10 @@ def broadcast_metrics():
         return
     
     try:
-        # Get metrics from last 60 seconds
-        now = int(time.time() * 1000)
-        sixty_seconds_ago = now - 60000
-        
-        response = metrics_table.scan(
-            FilterExpression='#ts >= :start',
-            ExpressionAttributeNames={'#ts': 'timestamp'},
-            ExpressionAttributeValues={':start': sixty_seconds_ago}
-        )
-        
-        metrics = response.get('Items', [])
-        
-        # Calculate aggregated metrics
-        total = len(metrics)
-        avg_latency = sum(int(m.get('latency', 0)) for m in metrics) / max(total, 1)
-        avg_accuracy = sum(float(m.get('accuracy', 0)) for m in metrics) / max(total, 1)
-        throughput = total / 60  # per second
-        
-        aggregated_metrics = {
-            'total': total,
-            'avgLatency': round(avg_latency),
-            'avgAccuracy': round(avg_accuracy, 1),
-            'throughput': round(throughput, 2),
-            'timestamp': now
-        }
+        # Get current metrics
+        aggregated_metrics = calculate_current_metrics()
+        if not aggregated_metrics:
+            return
         
         # Get all active connections
         connections_response = connections_table.scan()
