@@ -283,7 +283,7 @@ Resources:
   # WEBSOCKET DASHBOARD COMPONENTS
   # ========================================
   
-  # DynamoDB Tables
+  # DynamoDB Tables for Dashboard
   WSConnectionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -312,293 +312,75 @@ Resources:
           KeyType: RANGE
       BillingMode: PAY_PER_REQUEST
 
-  # WebSocket API & Routes
+  # WebSocket API (uses existing UploadFunction from SAM template)
   WebSocketApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
-      Name: MetricsWS
+      Name: InvoiceDashboardWS
       ProtocolType: WEBSOCKET
       RouteSelectionExpression: $request.body.action
 
+  # WebSocket Routes (both route to existing UploadFunction)
   ConnectRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref WebSocketApi
       RouteKey: $connect
-      Target: !Sub "integrations/${ConnectIntegration}"
+      AuthorizationType: NONE
+      OperationName: ConnectRoute
+      Target: !Sub integrations/${ConnectInteg}
 
   DisconnectRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref WebSocketApi
       RouteKey: $disconnect
-      Target: !Sub "integrations/${DisconnectIntegration}"
+      AuthorizationType: NONE
+      OperationName: DisconnectRoute
+      Target: !Sub integrations/${DisconnectInteg}
 
-  SubscribeRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref WebSocketApi
-      RouteKey: metrics-subscribe
-      Target: !Sub "integrations/${SubscribeIntegration}"
-
-  # WebSocket Integrations
-  ConnectIntegration:
+  # WebSocket Integrations (point to SAM-deployed UploadFunction)
+  ConnectInteg:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref WebSocketApi
+      Description: Connect Integration
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConnectFunction.Arn}/invocations"
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sam-app-UploadFunction-*/invocations
 
-  DisconnectIntegration:
+  DisconnectInteg:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref WebSocketApi
+      Description: Disconnect Integration
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DisconnectFunction.Arn}/invocations"
-
-  SubscribeIntegration:
-    Type: AWS::ApiGatewayV2::Integration
-    Properties:
-      ApiId: !Ref WebSocketApi
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SubscribeFunction.Arn}/invocations"
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sam-app-UploadFunction-*/invocations
 
   # WebSocket Deployment & Stage
   WebSocketDeployment:
     Type: AWS::ApiGatewayV2::Deployment
-    Properties:
-      ApiId: !Ref WebSocketApi
     DependsOn:
       - ConnectRoute
       - DisconnectRoute
-      - SubscribeRoute
+    Properties:
+      ApiId: !Ref WebSocketApi
 
   WebSocketStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
-      ApiId: !Ref WebSocketApi
-      DeploymentId: !Ref WebSocketDeployment
       StageName: dev
+      Description: Dev Stage
+      DeploymentId: !Ref WebSocketDeployment
+      ApiId: !Ref WebSocketApi
 
-  # Lambda Functions
-  ConnectFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${EnvName}-ws-connect"
-      Handler: src/ws/connect.handler
-      Code:
-        ZipFile: |
-          const AWS = require('aws-sdk');
-          const dynamodb = new AWS.DynamoDB.DocumentClient();
-          
-          exports.handler = async (event) => {
-            const connectionId = event.requestContext.connectionId;
-            
-            await dynamodb.put({
-              TableName: process.env.WS_TABLE,
-              Item: { connectionId, timestamp: Date.now() }
-            }).promise();
-            
-            return { statusCode: 200 };
-          };
-      Runtime: nodejs18.x
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Environment:
-        Variables:
-          WS_TABLE: !Ref WSConnectionsTable
-
-  DisconnectFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${EnvName}-ws-disconnect"
-      Handler: src/ws/disconnect.handler
-      Code:
-        ZipFile: |
-          const AWS = require('aws-sdk');
-          const dynamodb = new AWS.DynamoDB.DocumentClient();
-          
-          exports.handler = async (event) => {
-            const connectionId = event.requestContext.connectionId;
-            
-            await dynamodb.delete({
-              TableName: process.env.WS_TABLE,
-              Key: { connectionId }
-            }).promise();
-            
-            return { statusCode: 200 };
-          };
-      Runtime: nodejs18.x
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Environment:
-        Variables:
-          WS_TABLE: !Ref WSConnectionsTable
-
-  SubscribeFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${EnvName}-ws-subscribe"
-      Handler: src/ws/subscribe.handler
-      Code:
-        ZipFile: |
-          exports.handler = async (event) => {
-            // Acknowledge subscription
-            return { statusCode: 200 };
-          };
-      Runtime: nodejs18.x
-      Role: !GetAtt LambdaExecutionRole.Arn
-
-  AggregatorFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${EnvName}-metrics-aggregator"
-      Handler: src/metrics/aggregator.handler
-      Code:
-        ZipFile: |
-          const AWS = require('aws-sdk');
-          const dynamodb = new AWS.DynamoDB.DocumentClient();
-          const apigateway = new AWS.ApiGatewayManagementApi({
-            endpoint: process.env.WS_ENDPOINT
-          });
-          
-          exports.handler = async (event) => {
-            const now = Date.now();
-            const sixtySecondsAgo = now - 60000;
-            
-            // Get metrics from last 60 seconds
-            const metricsResult = await dynamodb.scan({
-              TableName: process.env.METRICS_TABLE,
-              FilterExpression: '#ts >= :start',
-              ExpressionAttributeNames: { '#ts': 'timestamp' },
-              ExpressionAttributeValues: { ':start': sixtySecondsAgo }
-            }).promise();
-            
-            // Calculate aggregated metrics
-            const metrics = metricsResult.Items || [];
-            const total = metrics.length;
-            const throughput = total / 60; // per second
-            const avgLatency = metrics.reduce((sum, m) => sum + (m.latency || 0), 0) / (total || 1);
-            const avgAccuracy = metrics.reduce((sum, m) => sum + (m.accuracy || 0), 0) / (total || 1);
-            
-            const payload = JSON.stringify({
-              total,
-              throughput: Math.round(throughput * 100) / 100,
-              avgLatency: Math.round(avgLatency),
-              avgAccuracy: Math.round(avgAccuracy * 100) / 100
-            });
-            
-            // Get all WebSocket connections
-            const connectionsResult = await dynamodb.scan({
-              TableName: process.env.WS_TABLE
-            }).promise();
-            
-            // Send to all connections
-            const sendPromises = (connectionsResult.Items || []).map(async (connection) => {
-              try {
-                await apigateway.postToConnection({
-                  ConnectionId: connection.connectionId,
-                  Data: payload
-                }).promise();
-              } catch (error) {
-                if (error.statusCode === 410) {
-                  // Connection is stale, remove it
-                  await dynamodb.delete({
-                    TableName: process.env.WS_TABLE,
-                    Key: { connectionId: connection.connectionId }
-                  }).promise();
-                }
-              }
-            });
-            
-            await Promise.all(sendPromises);
-            return { statusCode: 200 };
-          };
-      Runtime: nodejs18.x
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Environment:
-        Variables:
-          METRICS_TABLE: !Ref InvoiceMetricsTable
-          WS_TABLE: !Ref WSConnectionsTable
-          WS_ENDPOINT: !Sub "https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/dev"
-
-  # IAM Role for Lambda Functions
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Scan
-                  - dynamodb:Query
-                Resource:
-                  - !GetAtt WSConnectionsTable.Arn
-                  - !GetAtt InvoiceMetricsTable.Arn
-        - PolicyName: WebSocketAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - execute-api:ManageConnections
-                Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
-
-  # Lambda Permissions for WebSocket API
-  ConnectPermission:
+  # Permissions for WebSocket API to invoke the SAM-deployed UploadFunction
+  WebSocketConnectPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref ConnectFunction
       Action: lambda:InvokeFunction
+      FunctionName: !Sub sam-app-UploadFunction-*
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
-
-  DisconnectPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref DisconnectFunction
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
-
-  SubscribePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref SubscribeFunction
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
-
-  # EventBridge Rule for Metrics Aggregation
-  MetricsScheduler:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: "Trigger metrics aggregation every 30 seconds"
-      ScheduleExpression: "rate(30 seconds)"
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt AggregatorFunction.Arn
-          Id: AggregatorTarget
-
-  PermissionForEvents:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref AggregatorFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt MetricsScheduler.Arn
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
 
 Outputs:
   ClusterName:
@@ -613,7 +395,7 @@ Outputs:
   
   WebSocketEndpoint:
     Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/dev"
-    Description: "WebSocket API endpoint for real-time metrics"
+    Description: "WebSocket API endpoint for real-time dashboard"
     Export:
       Name: !Sub "${EnvName}-websocket-url"
 

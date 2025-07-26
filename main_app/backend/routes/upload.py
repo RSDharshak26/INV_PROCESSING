@@ -4,8 +4,142 @@ from dotenv import load_dotenv
 load_dotenv()
 import time
 import re
+import uuid
+import boto3
+import json
 
 upload_bp = Blueprint('upload', __name__)
+
+# Initialize DynamoDB for metrics
+try:
+    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+    metrics_table = dynamodb.Table('InvoiceMetrics')
+    connections_table = dynamodb.Table('WSConnections')
+    print("DynamoDB metrics tables connected successfully")
+except Exception as e:
+    print(f"DynamoDB metrics connection failed: {e}")
+    dynamodb = None
+    metrics_table = None
+    connections_table = None
+
+def store_metrics(invoice_id, processing_time_ms, accuracy_score=95):
+    """Store processing metrics in DynamoDB for dashboard"""
+    if not metrics_table:
+        print("Metrics table not available, skipping metrics storage")
+        return
+    
+    try:
+        metrics_table.put_item(
+            Item={
+                'invoiceId': invoice_id,
+                'timestamp': int(time.time() * 1000),  # milliseconds since epoch
+                'latency': processing_time_ms,
+                'accuracy': accuracy_score,
+                'processedAt': time.strftime('%Y-%m-%d %H:%M:%S UTC')
+            }
+        )
+        print(f"Stored metrics for invoice {invoice_id}: {processing_time_ms}ms, {accuracy_score}%")
+    except Exception as e:
+        print(f"Error storing metrics: {e}")
+
+def calculate_accuracy_score(detected_text):
+    """Calculate accuracy score based on detected text quality"""
+    if not detected_text:
+        return 0
+    
+    # Simple heuristic: longer text with common invoice keywords = higher accuracy
+    text_lower = detected_text.lower()
+    invoice_keywords = ['invoice', 'total', 'amount', 'date', 'tax', 'subtotal', '$']
+    keyword_count = sum(1 for keyword in invoice_keywords if keyword in text_lower)
+    
+    # Base score on text length and keyword presence
+    length_score = min(len(detected_text) / 1000 * 50, 50)  # Up to 50% for text length
+    keyword_score = (keyword_count / len(invoice_keywords)) * 50  # Up to 50% for keywords
+    
+    total_score = length_score + keyword_score
+    return min(int(total_score), 95)  # Cap at 95%
+
+def broadcast_metrics_update():
+    """Broadcast updated metrics to all connected WebSocket clients"""
+    if not connections_table or not metrics_table:
+        print("Tables not available for broadcasting")
+        return
+    
+    try:
+        # Get metrics from last 60 seconds
+        now = int(time.time() * 1000)
+        sixty_seconds_ago = now - 60000
+        
+        response = metrics_table.scan(
+            FilterExpression='#ts >= :start',
+            ExpressionAttributeNames={'#ts': 'timestamp'},
+            ExpressionAttributeValues={':start': sixty_seconds_ago}
+        )
+        
+        metrics = response.get('Items', [])
+        
+        # Calculate aggregated metrics
+        total = len(metrics)
+        avg_latency = sum(int(m.get('latency', 0)) for m in metrics) / max(total, 1)
+        avg_accuracy = sum(float(m.get('accuracy', 0)) for m in metrics) / max(total, 1)
+        throughput = total / 60  # per second
+        
+        aggregated_metrics = {
+            'total': total,
+            'avgLatency': round(avg_latency),
+            'avgAccuracy': round(avg_accuracy, 1),
+            'throughput': round(throughput, 2),
+            'timestamp': now
+        }
+        
+        # Get all active connections
+        connections_response = connections_table.scan()
+        connections = connections_response.get('Items', [])
+        
+        if not connections:
+            print("No active connections to broadcast to")
+            return
+        
+        # Get WebSocket endpoint from environment
+        import os
+        ws_endpoint = os.environ.get('WS_ENDPOINT')
+        if not ws_endpoint:
+            print("WebSocket endpoint not configured")
+            return
+        
+        # Broadcast to all connections
+        apigateway = boto3.client('apigatewaymanagementapi', 
+                                endpoint_url=ws_endpoint.replace('wss://', 'https://'))
+        
+        message = json.dumps({
+            'type': 'metrics-update',
+            'data': aggregated_metrics
+        })
+        
+        successful_broadcasts = 0
+        for connection in connections:
+            try:
+                apigateway.post_to_connection(
+                    ConnectionId=connection['connectionId'],
+                    Data=message
+                )
+                successful_broadcasts += 1
+            except Exception as e:
+                print(f"Error sending to {connection['connectionId']}: {e}")
+                # Remove stale connection
+                if 'GoneException' in str(e) or '410' in str(e):
+                    try:
+                        connections_table.delete_item(
+                            Key={'connectionId': connection['connectionId']}
+                        )
+                        print(f"Removed stale connection {connection['connectionId']}")
+                    except:
+                        pass
+        
+        print(f"Broadcasted metrics to {successful_broadcasts}/{len(connections)} connections")
+        
+    except Exception as e:
+        print(f"Error broadcasting metrics: {e}")
 
 
 def detect_text(path):
@@ -180,6 +314,10 @@ def receive_image():
     
     try:
         print("Request received")
+        
+        # Start timing for metrics
+        start_time = time.time()
+        
         if 'file' not in request.files:
             from flask import make_response
             resp = make_response({"status": "failed", "error": "No file uploaded"})
@@ -237,6 +375,17 @@ def receive_image():
         detected_text, text_segments, output_filename = detect_text(temp_path)
         print("Detection completed successfully")
         
+        # Calculate processing time and accuracy for metrics
+        processing_time = int((time.time() - start_time) * 1000)  # Convert to milliseconds
+        accuracy_score = calculate_accuracy_score(detected_text)
+        
+        # Generate unique invoice ID and store metrics
+        invoice_id = f"inv_{uuid.uuid4().hex[:8]}_{int(time.time())}"
+        store_metrics(invoice_id, processing_time, accuracy_score)
+        
+        # Broadcast updated metrics to connected dashboards
+        broadcast_metrics_update()
+        
         # Clean up temporary file
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -247,7 +396,10 @@ def receive_image():
             "status": "success", 
             "image_url": f"/tmp/{output_filename}", 
             "extracted_text": detected_text,
-            "text_segments": text_segments
+            "text_segments": text_segments,
+            "processing_time_ms": processing_time,
+            "accuracy_score": accuracy_score,
+            "invoice_id": invoice_id
         }
         resp = make_response(response)
         resp.headers['Access-Control-Allow-Origin'] = '*'
