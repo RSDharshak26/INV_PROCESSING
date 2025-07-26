@@ -32,9 +32,11 @@ def calculate_all_time_metrics():
         return None
     
     try:
+        print("Starting metrics calculation...")
         # Get ALL metrics ever processed
         all_metrics_response = metrics_table.scan()
         all_metrics = all_metrics_response.get('Items', [])
+        print(f"Found {len(all_metrics)} metrics in database")
         
         # Calculate all-time dashboard metrics
         total_all_time = len(all_metrics)
@@ -43,6 +45,7 @@ def calculate_all_time_metrics():
             avg_latency = sum(int(m.get('latency', 0)) for m in all_metrics) / len(all_metrics)
             avg_accuracy = sum(float(m.get('accuracy', 0)) for m in all_metrics) / len(all_metrics)
         else:
+            print("No existing metrics found, using defaults")
             avg_latency = 0
             avg_accuracy = 0
         
@@ -59,6 +62,8 @@ def calculate_all_time_metrics():
         
     except Exception as e:
         print(f"Error calculating metrics: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -69,11 +74,14 @@ def broadcast_metrics_to_all():
         return
     
     try:
+        print("Starting broadcast_metrics_to_all...")
         # Get current metrics
         metrics = calculate_all_time_metrics()
         if not metrics:
-            print("No metrics to broadcast")
+            print("No metrics to broadcast - calculate_all_time_metrics returned None")
             return
+        
+        print(f"Broadcasting metrics: {metrics}")
         
         # Get all active connections
         connections_response = connections_table.scan()
