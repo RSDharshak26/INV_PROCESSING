@@ -5,25 +5,14 @@ load_dotenv()
 import time
 import re
 import uuid
-import boto3
-import json
 
 upload_bp = Blueprint('upload', __name__)
 
-# Initialize DynamoDB for metrics
-try:
-    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    metrics_table = dynamodb.Table('InvoiceMetrics')
-    connections_table = dynamodb.Table('WSConnections')
-    print("DynamoDB metrics tables connected successfully")
-except Exception as e:
-    print(f"DynamoDB metrics connection failed: {e}")
-    dynamodb = None
-    metrics_table = None
-    connections_table = None
-
 def store_metrics(invoice_id, processing_time_ms, accuracy_score=95):
     """Store processing metrics in DynamoDB for dashboard"""
+    # Import here to avoid circular imports
+    from app import metrics_table
+    
     if not metrics_table:
         print("Metrics table not available, skipping metrics storage")
         return
@@ -58,90 +47,6 @@ def calculate_accuracy_score(detected_text):
     
     total_score = length_score + keyword_score
     return min(int(total_score), 95)  # Cap at 95%
-
-def broadcast_metrics_update():
-    """Broadcast updated metrics to all connected WebSocket clients"""
-    if not connections_table or not metrics_table:
-        print("Tables not available for broadcasting")
-        return
-    
-    try:
-        # Get ALL metrics ever processed (no time filter)
-        all_metrics_response = metrics_table.scan()
-        all_metrics = all_metrics_response.get('Items', [])
-        
-        # Calculate all-time dashboard metrics
-        total_all_time = len(all_metrics)  # Total invoices ever processed
-        
-        # Calculate all-time averages
-        if all_metrics:
-            avg_latency = sum(int(m.get('latency', 0)) for m in all_metrics) / len(all_metrics)
-            avg_accuracy = sum(float(m.get('accuracy', 0)) for m in all_metrics) / len(all_metrics)
-        else:
-            avg_latency = 0
-            avg_accuracy = 0
-        
-        # Simple throughput: total processed (you could remove this if not needed)
-        throughput = total_all_time  # Just show total count, or set to 0 if you don't want throughput
-        
-        aggregated_metrics = {
-            'total': total_all_time,        # All-time total
-            'avgLatency': round(avg_latency),   # All-time average latency
-            'avgAccuracy': round(avg_accuracy, 1),  # All-time average accuracy
-            'throughput': throughput,       # Just total count (or remove if not needed)
-            'timestamp': int(time.time() * 1000)
-        }
-        
-        print(f"All-time dashboard metrics: {total_all_time} total, {avg_latency:.0f}ms avg latency, {avg_accuracy:.1f}% avg accuracy")
-        
-        # Get all active connections
-        connections_response = connections_table.scan()
-        connections = connections_response.get('Items', [])
-        
-        if not connections:
-            print("No active connections to broadcast to")
-            return
-        
-        # Get WebSocket endpoint from environment
-        import os
-        ws_endpoint = os.environ.get('WS_ENDPOINT')
-        if not ws_endpoint:
-            print("WebSocket endpoint not configured")
-            return
-        
-        # Broadcast to all connections
-        apigateway = boto3.client('apigatewaymanagementapi', 
-                                endpoint_url=ws_endpoint.replace('wss://', 'https://'))
-        
-        message = json.dumps({
-            'type': 'metrics-update',
-            'data': aggregated_metrics
-        })
-        
-        successful_broadcasts = 0
-        for connection in connections:
-            try:
-                apigateway.post_to_connection(
-                    ConnectionId=connection['connectionId'],
-                    Data=message
-                )
-                successful_broadcasts += 1
-            except Exception as e:
-                print(f"Error sending to {connection['connectionId']}: {e}")
-                # Remove stale connection
-                if 'GoneException' in str(e) or '410' in str(e):
-                    try:
-                        connections_table.delete_item(
-                            Key={'connectionId': connection['connectionId']}
-                        )
-                        print(f"Removed stale connection {connection['connectionId']}")
-                    except:
-                        pass
-        
-        print(f"Broadcasted metrics to {successful_broadcasts}/{len(connections)} connections")
-        
-    except Exception as e:
-        print(f"Error broadcasting metrics: {e}")
 
 
 def detect_text(path):
@@ -386,8 +291,9 @@ def receive_image():
         store_metrics(invoice_id, processing_time, accuracy_score)
         
         # Broadcast updated metrics to connected dashboards
-        broadcast_metrics_update()
-        
+        from app import broadcast_metrics_to_all
+        broadcast_metrics_to_all()
+
         # Clean up temporary file
         if os.path.exists(temp_path):
             os.remove(temp_path)

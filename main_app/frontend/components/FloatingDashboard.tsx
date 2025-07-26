@@ -17,7 +17,6 @@ export default function FloatingDashboard() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   useEffect(() => {
-    // Replace with actual WebSocket endpoint after deployment
     const wsEndpoint = process.env.NEXT_PUBLIC_WS_ENDPOINT || 'wss://hsdtkjqsub.execute-api.us-east-1.amazonaws.com/dev';
     
     const connectWebSocket = () => {
@@ -25,25 +24,19 @@ export default function FloatingDashboard() {
       const ws = new WebSocket(wsEndpoint);
 
       ws.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('WebSocket connected - waiting for metrics...');
         setConnectionStatus('connected');
-        
-        // Request current metrics after connection is established
-        setTimeout(() => {
-          const requestMessage = JSON.stringify({ action: 'get-metrics' });
-          ws.send(requestMessage);
-          console.log('Requested current metrics');
-        }, 100); // Small delay to ensure connection is fully ready
       };
 
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log('Received message:', message);
+          console.log('Received WebSocket message:', message);
           
           if (message.type === 'metrics-update') {
             setMetrics(message.data);
             setLastUpdate(new Date());
+            console.log('Dashboard updated with metrics:', message.data);
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -53,8 +46,6 @@ export default function FloatingDashboard() {
       ws.onclose = (event) => {
         console.log('WebSocket disconnected:', event);
         setConnectionStatus('disconnected');
-        
-        // Attempt to reconnect after 3 seconds
         setTimeout(connectWebSocket, 3000);
       };
 
@@ -67,10 +58,7 @@ export default function FloatingDashboard() {
     };
 
     const websocket = connectWebSocket();
-
-    return () => {
-      websocket.close();
-    };
+    return () => websocket.close();
   }, []);
 
   const formatValue = (val: number) => {

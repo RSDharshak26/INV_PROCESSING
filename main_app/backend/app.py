@@ -11,7 +11,7 @@ import time
 from flask_cors import CORS
 app = Flask(__name__)
 app.register_blueprint(upload_bp)
-##app.register_blueprint(process_bp)
+CORS(app)
 
 # Initialize DynamoDB client for WebSocket functionality
 try:
@@ -25,27 +25,20 @@ except Exception as e:
     connections_table = None
     metrics_table = None
 
-# ADD THIS HEALTH CHECK ENDPOINT
-@app.route('/health', methods=['GET'])
-def health_check():
-    return {"status": "healthy"}, 200
-
-CORS(app, origins = ["*"])
-
-def calculate_current_metrics():
-    """Calculate current all-time metrics from database"""
+def calculate_all_time_metrics():
+    """Calculate all-time metrics from database - SINGLE SOURCE OF TRUTH"""
     if not metrics_table:
+        print("Metrics table not available")
         return None
     
     try:
-        # Get ALL metrics ever processed (no time filter)
+        # Get ALL metrics ever processed
         all_metrics_response = metrics_table.scan()
         all_metrics = all_metrics_response.get('Items', [])
         
         # Calculate all-time dashboard metrics
-        total_all_time = len(all_metrics)  # Total invoices ever processed
+        total_all_time = len(all_metrics)
         
-        # Calculate all-time averages
         if all_metrics:
             avg_latency = sum(int(m.get('latency', 0)) for m in all_metrics) / len(all_metrics)
             avg_accuracy = sum(float(m.get('accuracy', 0)) for m in all_metrics) / len(all_metrics)
@@ -53,82 +46,118 @@ def calculate_current_metrics():
             avg_latency = 0
             avg_accuracy = 0
         
-        # Simple throughput: total processed
-        throughput = total_all_time
-        
         aggregated_metrics = {
-            'total': total_all_time,        # All-time total
-            'avgLatency': round(avg_latency),   # All-time average latency
-            'avgAccuracy': round(avg_accuracy, 1),  # All-time average accuracy
-            'throughput': throughput,       # Just total count
+            'total': total_all_time,
+            'avgLatency': round(avg_latency),
+            'avgAccuracy': round(avg_accuracy, 1),
+            'throughput': total_all_time,  # Simple throughput = total count
             'timestamp': int(time.time() * 1000)
         }
         
-        print(f"Current metrics: {total_all_time} total, {avg_latency:.0f}ms avg latency, {avg_accuracy:.1f}% avg accuracy")
+        print(f"Calculated metrics: {total_all_time} total, {avg_latency:.0f}ms avg latency, {avg_accuracy:.1f}% avg accuracy")
         return aggregated_metrics
         
     except Exception as e:
         print(f"Error calculating metrics: {e}")
         return None
 
-def send_current_metrics_to_new_connection(connection_id):
-    """Send current metrics to a newly connected client"""
-    if not connections_table or not metrics_table:
-        print("Tables not available for sending metrics")
+def send_metrics_to_connection(connection_id):
+    """Send current metrics to a specific connection"""
+    if not connections_table:
+        print("Connections table not available")
         return
     
     try:
-        # Use the SAME logic as the working upload route
-        # Get ALL metrics ever processed (no time filter)
-        all_metrics_response = metrics_table.scan()
-        all_metrics = all_metrics_response.get('Items', [])
+        # Get current metrics
+        metrics = calculate_all_time_metrics()
+        if not metrics:
+            print(f"No metrics to send to {connection_id}")
+            return
         
-        # Calculate all-time dashboard metrics (SAME as upload route)
-        total_all_time = len(all_metrics)  # Total invoices ever processed
-        
-        # Calculate all-time averages
-        if all_metrics:
-            avg_latency = sum(int(m.get('latency', 0)) for m in all_metrics) / len(all_metrics)
-            avg_accuracy = sum(float(m.get('accuracy', 0)) for m in all_metrics) / len(all_metrics)
-        else:
-            avg_latency = 0
-            avg_accuracy = 0
-        
-        # Simple throughput: total processed
-        throughput = total_all_time
-        
-        aggregated_metrics = {
-            'total': total_all_time,        # All-time total
-            'avgLatency': round(avg_latency),   # All-time average latency
-            'avgAccuracy': round(avg_accuracy, 1),  # All-time average accuracy
-            'throughput': throughput,       # Just total count
-            'timestamp': int(time.time() * 1000)
-        }
-        
-        print(f"Sending initial metrics to {connection_id}: {total_all_time} total, {avg_latency:.0f}ms avg latency, {avg_accuracy:.1f}% avg accuracy")
-        
-        # Send to this specific connection
+        # Get WebSocket endpoint
         ws_endpoint = os.environ.get('WS_ENDPOINT')
         if not ws_endpoint:
             print("WebSocket endpoint not configured")
             return
         
+        # Send to connection
         apigateway = boto3.client('apigatewaymanagementapi', 
                                 endpoint_url=ws_endpoint.replace('wss://', 'https://'))
         
         message = json.dumps({
             'type': 'metrics-update',
-            'data': aggregated_metrics
+            'data': metrics
         })
         
         apigateway.post_to_connection(
             ConnectionId=connection_id,
             Data=message
         )
-        print(f"Successfully sent initial metrics to connection {connection_id}")
+        print(f"Successfully sent metrics to connection {connection_id}")
         
     except Exception as e:
-        print(f"Error sending initial metrics to {connection_id}: {e}")
+        print(f"Error sending metrics to {connection_id}: {e}")
+
+def broadcast_metrics_to_all():
+    """Broadcast current metrics to all connected WebSocket clients"""
+    if not connections_table:
+        print("Tables not available for broadcasting")
+        return
+    
+    try:
+        # Get current metrics
+        metrics = calculate_all_time_metrics()
+        if not metrics:
+            print("No metrics to broadcast")
+            return
+        
+        # Get all active connections
+        connections_response = connections_table.scan()
+        connections = connections_response.get('Items', [])
+        
+        if not connections:
+            print("No active connections to broadcast to")
+            return
+        
+        # Get WebSocket endpoint
+        ws_endpoint = os.environ.get('WS_ENDPOINT')
+        if not ws_endpoint:
+            print("WebSocket endpoint not configured")
+            return
+        
+        # Broadcast to all connections
+        apigateway = boto3.client('apigatewaymanagementapi', 
+                                endpoint_url=ws_endpoint.replace('wss://', 'https://'))
+        
+        message = json.dumps({
+            'type': 'metrics-update',
+            'data': metrics
+        })
+        
+        successful_broadcasts = 0
+        for connection in connections:
+            try:
+                apigateway.post_to_connection(
+                    ConnectionId=connection['connectionId'],
+                    Data=message
+                )
+                successful_broadcasts += 1
+            except Exception as e:
+                print(f"Error sending to {connection['connectionId']}: {e}")
+                # Remove stale connection
+                if 'GoneException' in str(e) or '410' in str(e):
+                    try:
+                        connections_table.delete_item(
+                            Key={'connectionId': connection['connectionId']}
+                        )
+                        print(f"Removed stale connection {connection['connectionId']}")
+                    except:
+                        pass
+        
+        print(f"Broadcasted metrics to {successful_broadcasts}/{len(connections)} connections")
+        
+    except Exception as e:
+        print(f"Error broadcasting metrics: {e}")
 
 def handle_websocket_connect(connection_id):
     """Handle WebSocket connection"""
@@ -147,28 +176,16 @@ def handle_websocket_connect(connection_id):
         )
         print(f"Connection {connection_id} stored successfully")
         
-        # Don't send metrics immediately - wait for frontend to request them
+        # Try to send current metrics immediately - if it fails, that's OK
+        try:
+            send_metrics_to_connection(connection_id)
+        except Exception as e:
+            print(f"Could not send initial metrics to {connection_id} (connection might not be ready): {e}")
+            print("User will get metrics when next invoice is processed or someone else uploads")
         
         return {"statusCode": 200}
     except Exception as e:
         print(f"Error storing connection: {e}")
-        return {"statusCode": 500}
-
-def handle_websocket_message(connection_id, message):
-    """Handle WebSocket messages from frontend"""
-    try:
-        data = json.loads(message)
-        action = data.get('action')
-        
-        print(f"Received action '{action}' from {connection_id}")
-        
-        if action == 'get-metrics':
-            # Send current metrics when requested
-            send_current_metrics_to_new_connection(connection_id)
-        
-        return {"statusCode": 200}
-    except Exception as e:
-        print(f"Error handling message from {connection_id}: {e}")
         return {"statusCode": 500}
 
 def handle_websocket_disconnect(connection_id):
@@ -187,82 +204,6 @@ def handle_websocket_disconnect(connection_id):
         print(f"Error removing connection: {e}")
         return {"statusCode": 500}
 
-def broadcast_metrics():
-    """Calculate and broadcast metrics to all connected clients"""
-    if not connections_table or not metrics_table:
-        print("Tables not available for broadcasting")
-        return
-    
-    try:
-        # Use the SAME logic as upload route - just send to ALL connections
-        # Get ALL metrics ever processed (no time filter)
-        all_metrics_response = metrics_table.scan()
-        all_metrics = all_metrics_response.get('Items', [])
-        
-        # Calculate all-time dashboard metrics (SAME as upload route)
-        total_all_time = len(all_metrics)
-        
-        if all_metrics:
-            avg_latency = sum(int(m.get('latency', 0)) for m in all_metrics) / len(all_metrics)
-            avg_accuracy = sum(float(m.get('accuracy', 0)) for m in all_metrics) / len(all_metrics)
-        else:
-            avg_latency = 0
-            avg_accuracy = 0
-        
-        aggregated_metrics = {
-            'total': total_all_time,
-            'avgLatency': round(avg_latency),
-            'avgAccuracy': round(avg_accuracy, 1),
-            'throughput': total_all_time,
-            'timestamp': int(time.time() * 1000)
-        }
-        
-        # Get all active connections
-        connections_response = connections_table.scan()
-        connections = connections_response.get('Items', [])
-        
-        if not connections:
-            print("No active connections to broadcast to")
-            return
-        
-        # Broadcast to all connections
-        ws_endpoint = os.environ.get('WS_ENDPOINT')
-        if not ws_endpoint:
-            print("WebSocket endpoint not configured")
-            return
-        
-        apigateway = boto3.client('apigatewaymanagementapi', 
-                                endpoint_url=ws_endpoint.replace('wss://', 'https://'))
-        
-        message = json.dumps({
-            'type': 'metrics-update',
-            'data': aggregated_metrics
-        })
-        
-        for connection in connections:
-            try:
-                apigateway.post_to_connection(
-                    ConnectionId=connection['connectionId'],
-                    Data=message
-                )
-                print(f"Sent metrics to connection {connection['connectionId']}")
-            except Exception as e:
-                print(f"Error sending to {connection['connectionId']}: {e}")
-                # Remove stale connection
-                if 'GoneException' in str(e) or '410' in str(e):
-                    try:
-                        connections_table.delete_item(
-                            Key={'connectionId': connection['connectionId']}
-                        )
-                        print(f"Removed stale connection {connection['connectionId']}")
-                    except:
-                        pass
-        
-        print(f"Broadcasted metrics to {len(connections)} connections")
-        
-    except Exception as e:
-        print(f"Error broadcasting metrics: {e}")
-
 def lambda_handler(event, context):
     """Handle both HTTP and WebSocket events"""
     
@@ -277,10 +218,6 @@ def lambda_handler(event, context):
             return handle_websocket_connect(connection_id)
         elif route_key == '$disconnect':
             return handle_websocket_disconnect(connection_id)
-        elif route_key == '$default':
-            # Handle messages sent from frontend
-            message = event.get('body', '{}')
-            return handle_websocket_message(connection_id, message)
         else:
             return {"statusCode": 200}
     
