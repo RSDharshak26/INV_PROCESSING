@@ -71,31 +71,64 @@ def calculate_current_metrics():
         print(f"Error calculating metrics: {e}")
         return None
 
-def send_metrics_to_connection(connection_id, metrics):
-    """Send metrics to a specific WebSocket connection"""
-    ws_endpoint = os.environ.get('WS_ENDPOINT')
-    if not ws_endpoint:
-        print("WebSocket endpoint not configured")
-        return False
+def send_current_metrics_to_new_connection(connection_id):
+    """Send current metrics to a newly connected client"""
+    if not connections_table or not metrics_table:
+        print("Tables not available for sending metrics")
+        return
     
     try:
+        # Use the SAME logic as the working upload route
+        # Get ALL metrics ever processed (no time filter)
+        all_metrics_response = metrics_table.scan()
+        all_metrics = all_metrics_response.get('Items', [])
+        
+        # Calculate all-time dashboard metrics (SAME as upload route)
+        total_all_time = len(all_metrics)  # Total invoices ever processed
+        
+        # Calculate all-time averages
+        if all_metrics:
+            avg_latency = sum(int(m.get('latency', 0)) for m in all_metrics) / len(all_metrics)
+            avg_accuracy = sum(float(m.get('accuracy', 0)) for m in all_metrics) / len(all_metrics)
+        else:
+            avg_latency = 0
+            avg_accuracy = 0
+        
+        # Simple throughput: total processed
+        throughput = total_all_time
+        
+        aggregated_metrics = {
+            'total': total_all_time,        # All-time total
+            'avgLatency': round(avg_latency),   # All-time average latency
+            'avgAccuracy': round(avg_accuracy, 1),  # All-time average accuracy
+            'throughput': throughput,       # Just total count
+            'timestamp': int(time.time() * 1000)
+        }
+        
+        print(f"Sending initial metrics to {connection_id}: {total_all_time} total, {avg_latency:.0f}ms avg latency, {avg_accuracy:.1f}% avg accuracy")
+        
+        # Send to this specific connection
+        ws_endpoint = os.environ.get('WS_ENDPOINT')
+        if not ws_endpoint:
+            print("WebSocket endpoint not configured")
+            return
+        
         apigateway = boto3.client('apigatewaymanagementapi', 
                                 endpoint_url=ws_endpoint.replace('wss://', 'https://'))
         
         message = json.dumps({
             'type': 'metrics-update',
-            'data': metrics
+            'data': aggregated_metrics
         })
         
         apigateway.post_to_connection(
             ConnectionId=connection_id,
             Data=message
         )
-        print(f"Sent current metrics to new connection {connection_id}")
-        return True
+        print(f"Successfully sent initial metrics to connection {connection_id}")
+        
     except Exception as e:
-        print(f"Error sending metrics to {connection_id}: {e}")
-        return False
+        print(f"Error sending initial metrics to {connection_id}: {e}")
 
 def handle_websocket_connect(connection_id):
     """Handle WebSocket connection"""
@@ -114,10 +147,8 @@ def handle_websocket_connect(connection_id):
         )
         print(f"Connection {connection_id} stored successfully")
         
-        # Immediately send current metrics to the new connection
-        current_metrics = calculate_current_metrics()
-        if current_metrics:
-            send_metrics_to_connection(connection_id, current_metrics)
+        # Send current metrics immediately using the SAME logic as upload route
+        send_current_metrics_to_new_connection(connection_id)
         
         return {"statusCode": 200}
     except Exception as e:
@@ -147,10 +178,28 @@ def broadcast_metrics():
         return
     
     try:
-        # Get current metrics
-        aggregated_metrics = calculate_current_metrics()
-        if not aggregated_metrics:
-            return
+        # Use the SAME logic as upload route - just send to ALL connections
+        # Get ALL metrics ever processed (no time filter)
+        all_metrics_response = metrics_table.scan()
+        all_metrics = all_metrics_response.get('Items', [])
+        
+        # Calculate all-time dashboard metrics (SAME as upload route)
+        total_all_time = len(all_metrics)
+        
+        if all_metrics:
+            avg_latency = sum(int(m.get('latency', 0)) for m in all_metrics) / len(all_metrics)
+            avg_accuracy = sum(float(m.get('accuracy', 0)) for m in all_metrics) / len(all_metrics)
+        else:
+            avg_latency = 0
+            avg_accuracy = 0
+        
+        aggregated_metrics = {
+            'total': total_all_time,
+            'avgLatency': round(avg_latency),
+            'avgAccuracy': round(avg_accuracy, 1),
+            'throughput': total_all_time,
+            'timestamp': int(time.time() * 1000)
+        }
         
         # Get all active connections
         connections_response = connections_table.scan()
