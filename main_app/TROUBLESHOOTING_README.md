@@ -28,16 +28,21 @@ inv-processing-authentication-f9e50adadbc5.json was not found
 **Root Cause:** File path in `docker-compose.yml` was incorrect or pointing to wrong filename.
 
 **Solution:**
+Google Cloud credentials are now retrieved from AWS Secrets Manager. Ensure that:
+1. AWS credentials are properly configured in your environment
+2. The secret "google_ocr" exists in AWS Secrets Manager (us-east-1 region)
+3. Your AWS role/user has permissions to read from Secrets Manager
+
 ```yaml
-# In docker-compose.yml
+# In docker-compose.yml - No Google credentials needed anymore
 environment:
-  - GOOGLE_APPLICATION_CREDENTIALS=/app/inv-processing-authentication-f9e50adadbc5.json
-volumes:
-  - ./inv-processing-authentication-f9e50adadbc5.json:/app/inv-processing-authentication-f9e50adadbc5.json
+  - FLASK_APP=app.py
+  - FLASK_ENV=production
 ```
 
 **Learning Points:**
-- Always double-check file paths in Docker volumes
+- AWS Secrets Manager provides better security than mounting credential files
+- Ensure proper IAM permissions for Secrets Manager access
 - Use absolute paths when possible
 - Verify files exist before referencing them in configs
 
@@ -57,16 +62,20 @@ volumes:
    docker-compose up --build
    ```
 
-2. **For Lambda:** Add environment variable in SAM template
+2. **For Lambda:** Ensure proper IAM policies in SAM template
    ```yaml
-   Environment:
-     Variables:
-       GOOGLE_APPLICATION_CREDENTIALS: /opt/credentials.json
+   Policies:
+     - SecretsManagerReadWrite  # For accessing Google OCR credentials
    ```
 
-3. **For Local Development:** Set environment variable
+3. **For Local Development:** Configure AWS credentials
    ```powershell
-   $env:GOOGLE_APPLICATION_CREDENTIALS="C:\path\to\key.json"
+   # Ensure AWS credentials are configured
+   aws configure
+   # Or set environment variables
+   $env:AWS_ACCESS_KEY_ID="your_access_key"
+   $env:AWS_SECRET_ACCESS_KEY="your_secret_key"
+   $env:AWS_DEFAULT_REGION="us-east-1"
    ```
 
 **Learning Points:**

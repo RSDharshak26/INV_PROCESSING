@@ -58,3 +58,7 @@ build/
 # Static files (generated)
 main_app/backend/static/ 
 
+/inv-processing-authentication-f9e50adadbc5.json
+
+
+/.github/workflows/secrets.env

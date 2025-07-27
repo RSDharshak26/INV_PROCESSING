@@ -1,10 +1,16 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
+Description: >
+  python3.12
 
+  Sample SAM Template for invoice-processing-backend
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 60
-    MemorySize: 1024
+    Timeout: 30
+    MemorySize: 256
+    Runtime: python3.12
   Api:
     BinaryMediaTypes:
       - "image/*"
@@ -12,16 +18,16 @@ Globals:
       - "multipart/form-data"
 
 Resources:
-  UploadFunction:
-    Type: AWS::Serverless::Function
+  InvoiceProcessingFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: .                      # package everything here
-      Runtime: python3.12             # updated to match closer to your version
-      Handler: app.lambda_handler     # our new handler
+      CodeUri: ./
+      Handler: app.lambda_handler
+      Runtime: python3.12
       Environment:
         Variables:
-          GOOGLE_APPLICATION_CREDENTIALS: ./inv-processing-authentication-f9e50adadbc5.json
-          WS_ENDPOINT: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/dev"
+          FLASK_APP: app.py
+          FLASK_ENV: production
       Policies:
         - DynamoDBCrudPolicy:
             TableName: WSConnections
