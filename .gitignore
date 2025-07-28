@@ -58,7 +58,8 @@ build/
 # Static files (generated)
 main_app/backend/static/ 
 
-/inv-processing-authentication-f9e50adadbc5.json
+# Google Cloud credentials now handled via AWS Secrets Manager
+# /inv-processing-authentication-f9e50adadbc5.json
 
 
 /.github/workflows/secrets.env

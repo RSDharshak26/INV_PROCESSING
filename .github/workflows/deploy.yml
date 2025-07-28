@@ -19,11 +19,11 @@ jobs:
       # FRONTEND DEPLOYMENT
       - name: Build and push frontend
         run: |
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 829719098161.dkr.ecr.us-east-1.amazonaws.com
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 505489717400.dkr.ecr.us-east-1.amazonaws.com
           cd main_app/frontend
           docker build -t my-frontend .
-          docker tag my-frontend:latest 829719098161.dkr.ecr.us-east-1.amazonaws.com/my-frontend:latest
-          docker push 829719098161.dkr.ecr.us-east-1.amazonaws.com/my-frontend:latest
+          docker tag my-frontend:latest 505489717400.dkr.ecr.us-east-1.amazonaws.com/my-frontend:latest
+          docker push 505489717400.dkr.ecr.us-east-1.amazonaws.com/my-frontend:latest
           cd ../..
           
       - name: Update ECS service

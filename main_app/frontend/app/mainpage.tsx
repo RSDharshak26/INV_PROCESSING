@@ -32,7 +32,7 @@ export default function HomePage() {
     // Sends an HTTP request to the URL you give (here http://…/receive).
     // Returns a Promise that resolves to a Response object once the server replies.
   
-    const response = await fetch('https://pd8768jjsc.execute-api.us-east-1.amazonaws.com/Prod/receive', {
+    const response = await fetch('https://313f92h3dh.execute-api.us-east-1.amazonaws.com/Prod/receive', {
       method: 'POST',
       body: formData        // no headers, browser adds them
     });
@@ -89,33 +89,105 @@ export default function HomePage() {
     return () => subscription.unsubscribe();
   }, []); // [] is the dependency array . empty = no dependency and runs only once. 
 
-  if (loading || !isClient) return <div>loading....</div>;
-  if (!user) return <div><LoginButton /></div>;
+  if (loading || !isClient) return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+    </div>
+  );
+  
+  if (!user) return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full mx-4">
+        <div className="text-center">
+          <div className="mx-auto h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center mb-6">
+            <svg className="h-8 w-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invoice Processing</h1>
+          <p className="text-gray-600 mb-6">Sign in to start processing your invoices</p>
+          <LoginButton />
+        </div>
+      </div>
+    </div>
+  );
   //return <div>Welcome {user.email}</div>;
   //show the login page is proceeded by a file upload UI
   
   return (
-    <div style={{ padding: '2rem', textAlign: 'center' }}>
-      <h1>Welcome, {user.email}</h1>
-      <h2 style={{ marginTop: '1rem' }}>Upload Your Invoice</h2>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Welcome, <span className="text-indigo-600">{user.email}</span>
+          </h1>
+          <h2 className="text-xl text-gray-600">Upload Your Invoice</h2>
+        </div>
 
-      
-      <form onSubmit={handleSubmit}>
+        <div className="bg-white rounded-3xl shadow-xl p-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center hover:border-indigo-400 hover:bg-gray-50 transition-all duration-300">
+              <div className="mx-auto h-20 w-20 bg-indigo-100 rounded-full flex items-center justify-center mb-6">
+                <svg className="h-10 w-10 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-semibold text-gray-900 mb-2">Choose your invoice file</h3>
+              <p className="text-gray-600 mb-6">Click to browse or drag and drop</p>
+              
+              <input type="file" name="file_upload" accept="image" className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 file:cursor-pointer cursor-pointer" />
+              
+              <div className="text-sm text-gray-500 mt-4">
+                <span className="font-medium">Supported formats:</span> PNG, JPG, JPEG
+              </div>
+            </div>
 
-      
-      <input type="file" name = "file_upload" accept="image" />
+            <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-4 px-8 rounded-xl text-lg transition-all duration-300 transform hover:scale-105">
+              <div className="flex items-center justify-center space-x-2">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span>Process Invoice</span>
+              </div>
+            </Button>
+          </form>
+        </div>
 
-      <Button className="bg-blue-500 text-white p-4 rounded">Submit</Button>
-      </form>    
-
-
-      
-
-
+        <div className="grid md:grid-cols-3 gap-6 mt-8">
+          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
+            <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-2">AI-Powered OCR</h3>
+            <p className="text-gray-600 text-sm">Advanced Google Vision API</p>
+          </div>
+          
+          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
+            <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-2">Secure Processing</h3>
+            <p className="text-gray-600 text-sm">AWS infrastructure</p>
+          </div>
+          
+          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
+            <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-2">Lightning Fast</h3>
+            <p className="text-gray-600 text-sm">Process invoices quickly</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-
 //<form> is an HTML element that groups inputs and a submit button.
 //call the JavaScript function named handleSubmit
 //onSubmit={…}—is your event listener.

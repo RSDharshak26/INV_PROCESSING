@@ -144,7 +144,7 @@ Resources:
           Essential: true
           Environment:
             - Name: REACT_APP_API_URL
-              Value: "https://pd8768jjsc.execute-api.us-east-1.amazonaws.com/Prod/receive"
+              Value: "https://313f92h3dh.execute-api.us-east-1.amazonaws.com/Prod/receive"
             - Name: NEXT_PUBLIC_SUPABASE_URL
               Value: "https://qkwviicbpbkkafstuxhx.supabase.co"
             - Name: NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -346,7 +346,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       Description: Connect Integration
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sam-app-UploadFunction-*/invocations
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sam-app-InvoiceProcessingFunction-*/invocations
 
   DisconnectInteg:
     Type: AWS::ApiGatewayV2::Integration
@@ -354,7 +354,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       Description: Disconnect Integration
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sam-app-UploadFunction-*/invocations
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sam-app-InvoiceProcessingFunction-*/invocations
 
   # WebSocket Deployment & Stage
   WebSocketDeployment:
@@ -378,7 +378,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Sub sam-app-UploadFunction-*
+      FunctionName: !Sub sam-app-InvoiceProcessingFunction-*
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
 

@@ -28,11 +28,17 @@ Resources:
         Variables:
           FLASK_APP: app.py
           FLASK_ENV: production
+          WS_ENDPOINT: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/dev"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: WSConnections
         - DynamoDBCrudPolicy:
             TableName: InvoiceMetrics
+        - Statement:
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:google_ocr*"
         - Statement:
             Effect: Allow
             Action:
@@ -116,7 +122,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       Description: Connect Integration
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UploadFunction.Arn}/invocations
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceProcessingFunction.Arn}/invocations
 
   DisconnectInteg:
     Type: AWS::ApiGatewayV2::Integration
@@ -124,7 +130,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       Description: Disconnect Integration
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UploadFunction.Arn}/invocations
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceProcessingFunction.Arn}/invocations
 
   DefaultInteg:
     Type: AWS::ApiGatewayV2::Integration
@@ -132,7 +138,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       Description: Default Integration for incoming messages
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UploadFunction.Arn}/invocations
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceProcessingFunction.Arn}/invocations
 
   Deployment:
     Type: AWS::ApiGatewayV2::Deployment
@@ -156,7 +162,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Ref UploadFunction
+      FunctionName: !Ref InvoiceProcessingFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
 
