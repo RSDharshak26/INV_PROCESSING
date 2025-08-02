@@ -1,5 +1,6 @@
 'use client';
 
+// part 1 : imports
 import '../styles/globals.css';
 import { Button } from "./ui/button"
 import { useEffect, useState } from 'react';
@@ -7,7 +8,9 @@ import { supabase_obj } from '@/lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
 import LoginButton from '@/components/LoginButton';
 import { useRouter } from 'next/navigation';
-//for routing 
+//for routing
+
+//part 2 : logic and data ( java/typescript zone.)
 
 
 export default function HomePage() {
@@ -32,13 +35,12 @@ export default function HomePage() {
     // Sends an HTTP request to the URL you give (here http://…/receive).
     // Returns a Promise that resolves to a Response object once the server replies.
   
-    const response = await fetch('https://313f92h3dh.execute-api.us-east-1.amazonaws.com/Prod/receive', {
+    const response = await fetch('https://bdyl3hj7je.execute-api.us-east-1.amazonaws.com/Prod/receive', {
       method: 'POST',
       body: formData        // no headers, browser adds them
     });
     
     const result = await response.json(); // instead of json you can use text, blob, formdata etc,
-
     console.log("console result",result.status)
     if (result.status === "success") { // status is inbuilt 
       // Redirect to results page with the processed image and extracted text

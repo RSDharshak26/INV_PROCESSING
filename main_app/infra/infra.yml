@@ -6,11 +6,13 @@ Description: "ECS Fargate cluster for my app _ VPC"
 Parameters:
   EnvName:                               
     Type: String
-    Default: dev
+    Default: prod
   
 
 
 Resources:
+  # Note: ECR Repository 'my-frontend' already exists from previous deployment
+
   AppCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -280,107 +282,10 @@ Resources:
 
 
   # ========================================
-  # WEBSOCKET DASHBOARD COMPONENTS
+  # INFRASTRUCTURE COMPONENTS ONLY
   # ========================================
-  
-  # DynamoDB Tables for Dashboard
-  WSConnectionsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: WSConnections
-      AttributeDefinitions:
-        - AttributeName: connectionId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: connectionId
-          KeyType: HASH
-      BillingMode: PAY_PER_REQUEST
-
-  InvoiceMetricsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: InvoiceMetrics
-      AttributeDefinitions:
-        - AttributeName: invoiceId
-          AttributeType: S
-        - AttributeName: timestamp
-          AttributeType: N
-      KeySchema:
-        - AttributeName: invoiceId
-          KeyType: HASH
-        - AttributeName: timestamp
-          KeyType: RANGE
-      BillingMode: PAY_PER_REQUEST
-
-  # WebSocket API (uses existing UploadFunction from SAM template)
-  WebSocketApi:
-    Type: AWS::ApiGatewayV2::Api
-    Properties:
-      Name: InvoiceDashboardWS
-      ProtocolType: WEBSOCKET
-      RouteSelectionExpression: $request.body.action
-
-  # WebSocket Routes (both route to existing UploadFunction)
-  ConnectRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref WebSocketApi
-      RouteKey: $connect
-      AuthorizationType: NONE
-      OperationName: ConnectRoute
-      Target: !Sub integrations/${ConnectInteg}
-
-  DisconnectRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref WebSocketApi
-      RouteKey: $disconnect
-      AuthorizationType: NONE
-      OperationName: DisconnectRoute
-      Target: !Sub integrations/${DisconnectInteg}
-
-  # WebSocket Integrations (point to SAM-deployed UploadFunction)
-  ConnectInteg:
-    Type: AWS::ApiGatewayV2::Integration
-    Properties:
-      ApiId: !Ref WebSocketApi
-      Description: Connect Integration
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sam-app-InvoiceProcessingFunction-*/invocations
-
-  DisconnectInteg:
-    Type: AWS::ApiGatewayV2::Integration
-    Properties:
-      ApiId: !Ref WebSocketApi
-      Description: Disconnect Integration
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sam-app-InvoiceProcessingFunction-*/invocations
-
-  # WebSocket Deployment & Stage
-  WebSocketDeployment:
-    Type: AWS::ApiGatewayV2::Deployment
-    DependsOn:
-      - ConnectRoute
-      - DisconnectRoute
-    Properties:
-      ApiId: !Ref WebSocketApi
-
-  WebSocketStage:
-    Type: AWS::ApiGatewayV2::Stage
-    Properties:
-      StageName: dev
-      Description: Dev Stage
-      DeploymentId: !Ref WebSocketDeployment
-      ApiId: !Ref WebSocketApi
-
-  # Permissions for WebSocket API to invoke the SAM-deployed UploadFunction
-  WebSocketConnectPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Sub sam-app-InvoiceProcessingFunction-*
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
+  # Note: DynamoDB tables and WebSocket API are created by SAM deployment
+  # This file focuses on ECS, VPC, Load Balancer infrastructure
 
 Outputs:
   ClusterName:
@@ -392,5 +297,11 @@ Outputs:
     Description: "AWS Load Balancer URL for testing"
     Export:
       Name: !Sub "${EnvName}-frontend-url"
+
+  ECRRepositoryURI:
+    Value: "505489717400.dkr.ecr.us-east-1.amazonaws.com/my-frontend"
+    Description: "ECR Repository URI for Docker images (existing repository)"
+    Export:
+      Name: !Sub "${EnvName}-ecr-uri"
 
 
