@@ -12,7 +12,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 app.register_blueprint(upload_bp)
 CORS(app)
-
+# test 2 for github desktop 
 # Initialize DynamoDB client for WebSocket functionality
 try:
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
