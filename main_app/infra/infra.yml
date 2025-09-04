@@ -146,7 +146,7 @@ Resources:
           Essential: true
           Environment:
             - Name: REACT_APP_API_URL
-              Value: "https://313f92h3dh.execute-api.us-east-1.amazonaws.com/Prod/receive"
+              Value: "https://bdyl3hj7je.execute-api.us-east-1.amazonaws.com/Prod/receive"
             - Name: NEXT_PUBLIC_SUPABASE_URL
               Value: "https://qkwviicbpbkkafstuxhx.supabase.co"
             - Name: NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -279,6 +279,19 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref FrontendTargetGroup
+
+
+  HTTPSListener:
+  Type: AWS::ElasticLoadBalancingV2::Listener
+  Properties:
+    LoadBalancerArn: !Ref AppLoadBalancer
+    Port: 443
+    Protocol: HTTPS
+    Certificates:
+      - CertificateArn: arn:aws:acm:us-east-1:505489717400:certificate/491ee991-54bc-44b5-90fa-42c2ece65af4
+    DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref FrontendTargetGroup
 
 
   # ========================================
